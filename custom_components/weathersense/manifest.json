@@ -1,12 +1,12 @@
 {
   "domain": "weathersense",
   "name": "HA WeatherSense",
-  "documentation": "https://github.com/smkrv/ha-weathersense",
-  "issue_tracker": "https://github.com/smkrv/ha-weathersense/issues",
-  "dependencies": [],
   "codeowners": ["@smkrv"],
-  "requirements": [],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/smkrv/ha-weathersense",
   "iot_class": "calculated",
-  "version": "0.1.0",
-  "config_flow": true
+  "issue_tracker": "https://github.com/smkrv/ha-weathersense/issues",
+  "requirements": [],
+  "version": "0.1.0"
 }
