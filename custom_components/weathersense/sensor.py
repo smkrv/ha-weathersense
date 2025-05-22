@@ -1,3 +1,10 @@
+"""
+@license: CC BY-NC-SA 4.0 International
+@author: SMKRV
+@github: https://github.com/smkrv/ha-weathersense
+@source: https://github.com/smkrv/ha-weathersense
+"""
+
 """Sensor platform for HA WeatherSense integration."""
 from __future__ import annotations
 
@@ -35,6 +42,7 @@ from .const import (
     CONF_SOLAR_RADIATION_SENSOR,
     ATTR_COMFORT_LEVEL,
     ATTR_COMFORT_DESCRIPTION,
+    ATTR_COMFORT_EXPLANATION,
     ATTR_CALCULATION_METHOD,
     ATTR_TEMPERATURE,
     ATTR_HUMIDITY,
@@ -42,7 +50,14 @@ from .const import (
     ATTR_PRESSURE,
     ATTR_IS_OUTDOOR,
     ATTR_TIME_OF_DAY,
+    ATTR_IS_COMFORTABLE,
     COMFORT_DESCRIPTIONS,
+    COMFORT_EXPLANATIONS,
+    COMFORT_ICONS,
+    COMFORT_COMFORTABLE,
+    COMFORT_SLIGHTLY_WARM,
+    COMFORT_SLIGHTLY_COOL,
+    CONF_DISPLAY_UNIT,
 )
 from .weather_calculator import calculate_feels_like
 
@@ -67,6 +82,7 @@ async def async_setup_entry(
         config.get(CONF_PRESSURE_SENSOR),
         config.get(CONF_SOLAR_RADIATION_SENSOR),
         config.get(CONF_IS_OUTDOOR, True),
+        config.get(CONF_DISPLAY_UNIT),
     )
 
     async_add_entities([sensor])
@@ -91,12 +107,17 @@ class WeatherSenseSensor(SensorEntity):
         pressure_entity_id: Optional[str] = None,
         solar_radiation_entity_id: Optional[str] = None,
         is_outdoor: bool = True,
+        display_unit: Optional[str] = None,
     ) -> None:
         """Initialize the sensor."""
         self.hass = hass
         self._entry_id = entry_id
         self._attr_name = name
         self._attr_unique_id = f"{entry_id}_{name}"
+
+        # Get user's preferred temperature unit
+        temp_unit = hass.config.units.temperature_unit
+        self._attr_native_unit_of_measurement = temp_unit
 
         self._temperature_entity_id = temperature_entity_id
         self._humidity_entity_id = humidity_entity_id
@@ -105,6 +126,13 @@ class WeatherSenseSensor(SensorEntity):
         self._solar_radiation_entity_id = solar_radiation_entity_id
         self._is_outdoor = is_outdoor
 
+        # Set display unit
+        if display_unit in [UnitOfTemperature.CELSIUS, UnitOfTemperature.FAHRENHEIT]:
+            self._attr_native_unit_of_measurement = display_unit
+        else:
+            # Default to system settings
+            self._attr_native_unit_of_measurement = hass.config.units.temperature_unit
+
         self._temperature = None
         self._humidity = None
         self._wind_speed = None
@@ -112,6 +140,8 @@ class WeatherSenseSensor(SensorEntity):
         self._solar_radiation = None
         self._calculation_method = None
         self._comfort_level = None
+
+        self._attr_icon = "mdi:thermometer"
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
@@ -167,19 +197,19 @@ class WeatherSenseSensor(SensorEntity):
             return
 
         try:
+            # Get temperature and convert to Celsius if needed
             self._temperature = float(temp_state.state)
+            temp_unit = temp_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+            if temp_unit == UnitOfTemperature.FAHRENHEIT:
+                self._temperature = (self._temperature - 32) * 5/9
+                _LOGGER.debug("Converted temperature from %s°F to %s°C",
+                             float(temp_state.state), self._temperature)
+
+            # Get humidity
             self._humidity = float(humidity_state.state)
         except (ValueError, TypeError):
             _LOGGER.warning("Invalid temperature or humidity values")
             return
-
-        _LOGGER.debug(
-            "WeatherSense values - Temp: %s°C, Humidity: %s%%, Wind: %s m/s, Pressure: %s kPa",
-            self._temperature,
-            self._humidity,
-            self._wind_speed,
-            self._pressure
-        )
 
         # Get optional sensor values
         wind_speed = 0
@@ -192,8 +222,12 @@ class WeatherSenseSensor(SensorEntity):
                     wind_unit = wind_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
                     if wind_unit == UnitOfSpeed.KILOMETERS_PER_HOUR:
                         wind_speed = wind_speed / 3.6
+                        _LOGGER.debug("Converted wind speed from %s km/h to %s m/s",
+                                     float(wind_state.state), wind_speed)
                     elif wind_unit == UnitOfSpeed.MILES_PER_HOUR:
                         wind_speed = wind_speed * 0.44704
+                        _LOGGER.debug("Converted wind speed from %s mph to %s m/s",
+                                     float(wind_state.state), wind_speed)
                     self._wind_speed = wind_speed
                 except (ValueError, TypeError):
                     _LOGGER.debug("Invalid wind speed value")
@@ -204,23 +238,22 @@ class WeatherSenseSensor(SensorEntity):
             if pressure_state:
                 try:
                     pressure_value = float(pressure_state.state)
-                    _LOGGER.debug(
-                        "Raw pressure value: %s, unit: %s",
-                        pressure_value,
-                        pressure_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
-                    )
 
                     # Convert to kPa if needed
                     pressure_unit = pressure_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
                     if pressure_unit == UnitOfPressure.HPA:
                         # 1 hPa = 0.1 kPa
                         pressure_value = pressure_value * 0.1
+                        _LOGGER.debug("Converted pressure from %s hPa to %s kPa",
+                                     float(pressure_state.state), pressure_value)
                     elif pressure_unit == UnitOfPressure.MMHG:
                         pressure_value = pressure_value * 0.133322
+                        _LOGGER.debug("Converted pressure from %s mmHg to %s kPa",
+                                     float(pressure_state.state), pressure_value)
                     elif pressure_unit == UnitOfPressure.INHG:
                         pressure_value = pressure_value * 3.38639
-
-                    _LOGGER.debug("Converted pressure value to kPa: %s", pressure_value)
+                        _LOGGER.debug("Converted pressure from %s inHg to %s kPa",
+                                     float(pressure_state.state), pressure_value)
 
                     self._pressure = pressure_value
                 except (ValueError, TypeError):
@@ -240,24 +273,57 @@ class WeatherSenseSensor(SensorEntity):
             cloudiness,
         )
 
-        self._attr_native_value = round(feels_like, 1)
+        if self._attr_native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
+            feels_like_f = (feels_like * 9/5) + 32
+            self._attr_native_value = round(feels_like_f, 1)
+        else:
+            self._attr_native_value = round(feels_like, 1)
+
         self._calculation_method = method
         self._comfort_level = comfort
 
-        # Update state attributes
+        self._attr_icon = COMFORT_ICONS.get(self._comfort_level, "mdi:thermometer")
+
+        if self._is_outdoor:
+            is_comfortable = comfort in [COMFORT_COMFORTABLE, COMFORT_SLIGHTLY_WARM, COMFORT_SLIGHTLY_COOL]
+        else:
+            is_comfortable = comfort in [COMFORT_COMFORTABLE, COMFORT_SLIGHTLY_WARM]
+
+        _LOGGER.debug(
+            "Calculated feels like: %s°C, method: %s, comfort: %s, is_comfortable: %s",
+            round(feels_like, 1),
+            method,
+            comfort,
+            is_comfortable
+        )
+
         self._attr_extra_state_attributes = {
             ATTR_COMFORT_LEVEL: self._comfort_level,
             ATTR_COMFORT_DESCRIPTION: COMFORT_DESCRIPTIONS.get(self._comfort_level, ""),
+            ATTR_COMFORT_EXPLANATION: COMFORT_EXPLANATIONS.get(self._comfort_level, ""),
             ATTR_CALCULATION_METHOD: self._calculation_method,
             ATTR_TEMPERATURE: self._temperature,
             ATTR_HUMIDITY: self._humidity,
             ATTR_IS_OUTDOOR: self._is_outdoor,
-            ATTR_TIME_OF_DAY: current_time.isoformat(),
+            ATTR_TIME_OF_DAY: current_time.strftime("%Y-%m-%d %H:%M:%S"),
+            ATTR_IS_COMFORTABLE: is_comfortable,
         }
+
+        self._attr_extra_state_attributes.update({
+            f"{ATTR_TEMPERATURE}_unit": UnitOfTemperature.CELSIUS,
+            f"{ATTR_HUMIDITY}_unit": "%",
+        })
 
         if self._wind_speed is not None:
             self._attr_extra_state_attributes[ATTR_WIND_SPEED] = self._wind_speed
+            self._attr_extra_state_attributes[f"{ATTR_WIND_SPEED}_unit"] = UnitOfSpeed.METERS_PER_SECOND
         if self._pressure is not None:
-            self._attr_extra_state_attributes[ATTR_PRESSURE] = self._pressure
+            self._attr_extra_state_attributes[ATTR_PRESSURE] = round(self._pressure, 2)
+            self._attr_extra_state_attributes[f"{ATTR_PRESSURE}_unit"] = UnitOfPressure.KPA
+
+            self._attr_extra_state_attributes.update({
+                f"{ATTR_TEMPERATURE}_unit": UnitOfTemperature.CELSIUS,
+                f"{ATTR_WIND_SPEED}_unit": UnitOfSpeed.METERS_PER_SECOND,
+            })
 
         self.async_write_ha_state()

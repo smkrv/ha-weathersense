@@ -1,3 +1,10 @@
+"""
+@license: CC BY-NC-SA 4.0 International
+@author: SMKRV
+@github: https://github.com/smkrv/ha-weathersense
+@source: https://github.com/smkrv/ha-weathersense
+"""
+
 """Weather calculation functions for HA WeatherSense."""
 import math
 from datetime import datetime
@@ -8,10 +15,20 @@ STANDARD_PRESSURE = 101.3  # kPa
 
 
 def calculate_heat_index(temperature: float, humidity: float) -> float:
-    """Calculate Heat Index (HI) for high temperatures (≥ 27°C)."""
+    """
+    Calculate Heat Index (HI) for high temperatures (≥ 27°C).
+
+    Uses the NWS algorithm with adjustments for edge cases.
+    """
     t = temperature
     rh = humidity
 
+    # Simple formula for lower humidity or temperature conditions
+    if rh < 40 or t < 27:
+        hi = 0.5 * (t + 61.0 + ((t - 68.0) * 1.2) + (rh * 0.094))
+        return (hi + t) / 2  # Average with actual temperature for more reasonable results
+
+    # Full Rothfusz regression formula
     hi = -42.379
     hi += 2.04901523 * t
     hi += 10.14333127 * rh
@@ -21,6 +38,18 @@ def calculate_heat_index(temperature: float, humidity: float) -> float:
     hi += 0.00122874 * t * t * rh
     hi += 0.00085282 * t * rh * rh
     hi -= 0.00000199 * t * t * rh * rh
+
+    # Adjustments for extreme conditions
+    if rh < 13 and t >= 27 and t <= 37:
+        adjustment = ((13 - rh) / 4) * math.sqrt((17 - abs(t - 95)) / 17)
+        hi -= adjustment
+    elif rh > 85 and t >= 27 and t <= 31:
+        adjustment = ((rh - 85) / 10) * ((31 - t) / 4)
+        hi += adjustment
+
+    # Sanity check - heat index should not be unreasonably high
+    if hi > 70:  # Extremely high value in Celsius
+        hi = min(hi, t + 25)  # Limit to 25 degrees above actual temperature
 
     return hi
 
@@ -76,11 +105,11 @@ def apply_solar_correction(
 
 def apply_pressure_correction(feels_like: float, pressure: Optional[float] = None) -> float:
     """Apply pressure correction to feels-like temperature."""
-    if pressure is None:
+    if pressure is None or pressure <= 0:
         return feels_like
 
-    # Pressure should be in kPa here
-    print(f"Applying pressure correction: standard={STANDARD_PRESSURE} kPa, current={pressure} kPa")
+    if pressure < 80 or pressure > 110:
+        return feels_like
 
     correction = 0.1 * (STANDARD_PRESSURE - pressure)
     return feels_like + correction
@@ -101,14 +130,17 @@ def calculate_feels_like(
     Returns:
         Tuple of (feels_like_temp, calculation_method, comfort_level)
     """
+    import logging
+    _LOGGER = logging.getLogger(__name__)
+
     method = ""
 
     if is_outdoor:
         # Outdoor calculation
-        if temperature >= 27:
+        if temperature >= 27 and humidity >= 40:
             feels_like = calculate_heat_index(temperature, humidity)
             method = "Heat Index"
-        elif temperature <= 10:
+        elif temperature <= 10 and wind_speed > 1.34:
             feels_like = calculate_wind_chill(temperature, wind_speed)
             method = "Wind Chill"
         else:
@@ -116,15 +148,29 @@ def calculate_feels_like(
             method = "Steadman Apparent Temperature"
 
         # Apply solar and pressure corrections
+        original_feels_like = feels_like
         feels_like = apply_solar_correction(feels_like, time_of_day, cloudiness)
         if pressure is not None:
             feels_like = apply_pressure_correction(feels_like, pressure)
+
+        if abs(feels_like - original_feels_like) > 0.1:
+            _LOGGER.debug(
+                "Applied corrections: original=%s°C, after corrections=%s°C",
+                original_feels_like, feels_like
+            )
+
+        # Sanity check for unreasonable values
+        if feels_like > temperature + 25 or feels_like < temperature - 25:
+            _LOGGER.warning(
+                "Calculated feels-like temperature (%s°C) is far from actual temperature (%s°C). "
+                "This may indicate an issue with input data or calculation method.",
+                feels_like, temperature
+            )
 
         # Determine comfort level for outdoor
         comfort_level = determine_outdoor_comfort(feels_like, method)
     else:
         # Indoor calculation - simplified approach
-        # For a complete PMV calculation, we would need more parameters
         feels_like = calculate_indoor_feels_like(temperature, humidity)
         method = "Indoor Comfort Model"
         comfort_level = determine_indoor_comfort(feels_like, humidity)
@@ -134,10 +180,12 @@ def calculate_feels_like(
 
 def calculate_indoor_feels_like(temperature: float, humidity: float) -> float:
     """Calculate indoor feels-like temperature (simplified model)."""
-    # Simple model that increases perceived temperature at high humidity
+
     humidity_factor = 0
-    if humidity > 60:
-        humidity_factor = (humidity - 60) * 0.1
+    if humidity < 30:
+        humidity_factor = (humidity - 30) * 0.05
+    elif humidity > 60:
+        humidity_factor = (humidity - 60) * 0.05
 
     return temperature + humidity_factor
 
@@ -150,6 +198,11 @@ def determine_outdoor_comfort(feels_like: float, method: str) -> str:
         COMFORT_SLIGHTLY_WARM, COMFORT_WARM, COMFORT_HOT,
         COMFORT_VERY_HOT, COMFORT_EXTREME_HOT
     )
+
+    # Sanity check - if feels_like is unreasonable, use more conservative estimate
+    if feels_like > 60:  # Unreasonably high temperature
+        _LOGGER.warning("Calculated feels-like temperature is unreasonably high: %s°C. Using more conservative estimate.", feels_like)
+        feels_like = min(feels_like, 50)  # Cap at 50°C which is still extremely hot
 
     if method == "Heat Index":
         if feels_like >= 54:
@@ -182,8 +235,10 @@ def determine_outdoor_comfort(feels_like: float, method: str) -> str:
             return COMFORT_VERY_HOT
         elif feels_like > 32:
             return COMFORT_HOT
-        elif feels_like > 26:
+        elif feels_like > 29:
             return COMFORT_WARM
+        elif feels_like > 26:
+            return COMFORT_SLIGHTLY_WARM
         elif feels_like > 9:
             return COMFORT_COMFORTABLE
         elif feels_like > 0:

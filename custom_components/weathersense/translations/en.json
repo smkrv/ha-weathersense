@@ -12,7 +12,8 @@
           "wind_speed_sensor": "Wind Speed Sensor (optional)",
           "pressure_sensor": "Pressure Sensor (optional)",
           "solar_radiation_sensor": "Solar Radiation Sensor (optional)",
-          "is_outdoor": "Is this for outdoor conditions?"
+          "is_outdoor": "Is this for outdoor conditions?",
+          "display_unit": "Display Temperature Unit"
         }
       }
     },
@@ -31,7 +32,8 @@
           "wind_speed_sensor": "Wind Speed Sensor (optional)",
           "pressure_sensor": "Pressure Sensor (optional)",
           "solar_radiation_sensor": "Solar Radiation Sensor (optional)",
-          "is_outdoor": "Is this for outdoor conditions?"
+          "is_outdoor": "Is this for outdoor conditions?",
+          "display_unit": "Display Temperature Unit"
         }
       }
     }

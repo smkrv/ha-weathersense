@@ -1,10 +1,19 @@
+"""
+@license: CC BY-NC-SA 4.0 International
+@author: SMKRV
+@github: https://github.com/smkrv/ha-weathersense
+@source: https://github.com/smkrv/ha-weathersense
+"""
+
 """Config flow for HA WeatherSense integration."""
+import logging
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers import selector
+from homeassistant.const import UnitOfTemperature
 
 from .const import (
     DOMAIN,
@@ -16,8 +25,10 @@ from .const import (
     CONF_SOLAR_RADIATION_SENSOR,
     DEFAULT_NAME,
     DEFAULT_IS_OUTDOOR,
+    CONF_DISPLAY_UNIT,
 )
 
+_LOGGER = logging.getLogger(__name__)
 
 class WeatherSenseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HA WeatherSense."""
@@ -70,6 +81,16 @@ class WeatherSenseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.EntitySelectorConfig(domain="sensor")
                     ),
                     vol.Optional(CONF_IS_OUTDOOR, default=DEFAULT_IS_OUTDOOR): bool,
+                    # Добавьте следующую строку:
+                    vol.Optional(CONF_DISPLAY_UNIT): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                {"value": UnitOfTemperature.CELSIUS, "label": "Celsius (°C)"},
+                                {"value": UnitOfTemperature.FAHRENHEIT, "label": "Fahrenheit (°F)"},
+                            ],
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
                 }
             ),
             errors=errors,
@@ -78,6 +99,11 @@ class WeatherSenseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class WeatherSenseOptionsFlow(config_entries.OptionsFlow):
     """Handle options."""
+
+    def __init__(self, config_entry):
+        """Initialize options flow."""
+        self.config_entry = config_entry
+        _LOGGER.debug("Initializing options flow for entry: %s", config_entry.entry_id)
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
@@ -111,6 +137,18 @@ class WeatherSenseOptionsFlow(config_entries.OptionsFlow):
                 CONF_IS_OUTDOOR,
                 default=current_config.get(CONF_IS_OUTDOOR, DEFAULT_IS_OUTDOOR),
             ): bool,
+            vol.Optional(
+                CONF_DISPLAY_UNIT,
+                default=current_config.get(CONF_DISPLAY_UNIT),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": UnitOfTemperature.CELSIUS, "label": "Celsius (°C)"},
+                        {"value": UnitOfTemperature.FAHRENHEIT, "label": "Fahrenheit (°F)"},
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
         }
 
         return self.async_show_form(step_id="init", data_schema=vol.Schema(options))
