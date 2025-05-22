@@ -1,8 +1,8 @@
-# HA WeatherSense
+# HA WeatherSense – Scientifically Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons
 
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
 
-A Home Assistant integration that calculates "Feels Like" temperature based on multiple environmental factors.
+An advanced Home Assistant integration for precise “feels-like” temperature and comfort assessment, using scientifically validated multi-factor models.
 
 > [!IMPORTANT]
 > Please note: As these are the initial release versions, bugs and errors may occur.
@@ -16,8 +16,13 @@ A Home Assistant integration that calculates "Feels Like" temperature based on m
   - Humidity
   - Wind speed (for outdoor)
   - Atmospheric pressure
+  - Solar radiation (optional)
   - Time of day
-- Provides comfort level assessment
+- Provides comfort level assessment with detailed explanations
+- Includes comfort status indicator (is_comfortable attribute)
+- Dynamic icons that change based on comfort level
+- Supports different temperature units (°C/°F)
+- Automatic unit conversion for any input sensors
 - Easy setup through the UI
 
 ## Installation
@@ -29,7 +34,7 @@ A Home Assistant integration that calculates "Feels Like" temperature based on m
 1. Make sure [HACS](https://hacs.xyz/) is installed in your Home Assistant instance
 2. Add this repository as a custom repository in HACS:
    - Go to HACS → Integrations → ⋮ (menu) → Custom repositories
-   - Add `https://github.com/smkrv/ha-weathersense` as a repository 
+   - Add `https://github.com/smkrv/ha-weathersense` as a repository
    - Select "Integration" as the category
 3. Click "Install" on the HA WeatherSense integration
 4. Restart Home Assistant
@@ -46,10 +51,52 @@ A Home Assistant integration that calculates "Feels Like" temperature based on m
 1. Go to Settings → Devices & Services
 2. Click "Add Integration" and search for "HA WeatherSense"
 3. Follow the configuration steps:
+   - Enter a name for your sensor
    - Select a temperature sensor
    - Select a humidity sensor
-   - Optionally select wind speed, pressure, and solar radiation sensors
+   - Optionally select wind speed sensor
+   - Optionally select pressure sensor
+   - Optionally select solar radiation sensor
    - Specify if the sensor is for outdoor or indoor use
+   - Optionally select your preferred temperature display unit
+
+You can add multiple instances of the integration for different locations (e.g., living room, bedroom, outside).
+
+## Sensor Attributes
+
+The integration provides the following attributes:
+
+| Attribute | Description |
+|-----------|-------------|
+| `comfort_level` | Current comfort level code |
+| `comfort_description` | Short description of the comfort level |
+| `comfort_explanation` | Detailed explanation of the comfort level |
+| `calculation_method` | Method used for calculation (Heat Index, Wind Chill, etc.) |
+| `temperature` | Source temperature value (in °C) |
+| `humidity` | Source humidity value (%) |
+| `wind_speed` | Source wind speed value (in m/s) if available |
+| `pressure` | Source pressure value (in kPa) if available |
+| `is_outdoor` | Whether this is an outdoor or indoor sensor |
+| `time_of_day` | Current time when calculation was performed |
+| `is_comfortable` | Boolean indicating if current conditions are comfortable |
+
+## Dynamic Icons
+
+The sensor's icon changes automatically based on the current comfort level:
+
+| Comfort Level | Icon |
+|---------------|------|
+| `extreme_cold` | mdi:snowflake-alert |
+| `very_cold` | mdi:snowflake |
+| `cold` | mdi:weather-snowy |
+| `cool` | mdi:thermometer-low |
+| `slightly_cool` | mdi:thermometer-minus |
+| `comfortable` | mdi:thermometer |
+| `slightly_warm` | mdi:thermometer-plus |
+| `warm` | mdi:thermometer-high |
+| `hot` | mdi:weather-sunny |
+| `very_hot` | mdi:weather-sunny-alert |
+| `extreme_hot` | mdi:fire-alert |
 
 ## How It Works
 
@@ -57,33 +104,36 @@ HA WeatherSense uses different calculation methods depending on the environment 
 
 ### Outdoor Calculations
 
-- **Heat Index**: Used when temperature is ≥ 27°C
-- **Wind Chill**: Used when temperature is ≤ 10°C
-- **Steadman Apparent Temperature**: Used for temperatures between 10°C and 27°C
+- **Heat Index**: Used when temperature is ≥ 27°C and humidity ≥ 40%
+- **Wind Chill**: Used when temperature is ≤ 10°C and wind speed > 1.34 m/s
+- **Steadman Apparent Temperature**: Used for all other conditions
 
 Additional corrections are applied for:
 - Time of day (solar radiation effect)
 - Atmospheric pressure variations
+- Solar radiation (if sensor provided)
 
 ### Indoor Calculations
 
-For indoor environments, a simplified thermal comfort model is used that primarily considers temperature and humidity.
+For indoor environments, a simplified thermal comfort model is used that primarily considers temperature and humidity interactions.
 
 ## Comfort Levels
 
 The integration provides a comfort assessment with the following levels:
 
-- Extreme Cold Stress
-- Very Strong Cold Stress
-- Strong Cold Stress
-- Moderate Cold Stress
-- Slight Cold Stress
-- No Thermal Stress (Comfort)
-- Slight Heat Stress
-- Moderate Heat Stress
-- Strong Heat Stress
-- Very Strong Heat Stress
-- Extreme Heat Stress
+| Level | Description | Explanation |
+|-------|-------------|-------------|
+| `extreme_cold` | Extreme Cold Stress | Extreme risk: frostbite possible in less than 5 minutes |
+| `very_cold` | Very Strong Cold Stress | High risk: frostbite possible in 5-10 minutes |
+| `cold` | Strong Cold Stress | Warning: frostbite possible in 10-30 minutes |
+| `cool` | Moderate Cold Stress | Caution: prolonged exposure may cause discomfort |
+| `slightly_cool` | Slight Cold Stress | Slightly cool: light discomfort for sensitive individuals |
+| `comfortable` | No Thermal Stress | Optimal thermal conditions: most people feel comfortable |
+| `slightly_warm` | Slight Heat Stress | Slightly warm: light discomfort for sensitive individuals |
+| `warm` | Moderate Heat Stress | Caution: fatigue possible with prolonged exposure |
+| `hot` | Strong Heat Stress | Extreme caution: heat exhaustion possible |
+| `very_hot` | Very Strong Heat Stress | Danger: heat cramps and exhaustion likely |
+| `extreme_hot` | Extreme Heat Stress | Extreme danger: heat stroke imminent |
 
 ## Example Automations
 
@@ -107,7 +157,36 @@ automation:
           temperature: 23
 ```
 
----
+### Send notification when conditions become uncomfortable
+
+```yaml
+automation:
+  - alias: "Notify when outdoor conditions become uncomfortable"
+    trigger:
+      - platform: state
+        entity_id: sensor.outdoor_feels_like
+        attribute: is_comfortable
+        from: "true"
+        to: "false"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Weather Alert"
+          message: >
+            Outdoor conditions are now {{ states.sensor.outdoor_feels_like.attributes.comfort_description | lower }}.
+            Feels like {{ states.sensor.outdoor_feels_like.state }}°.
+            {{ states.sensor.outdoor_feels_like.attributes.comfort_explanation }}
+```
+
+### Display comfort level in dashboard
+
+```yaml
+type: entities
+entities:
+  - entity: sensor.feels_like_temperature
+    secondary_info: attribute
+    secondary_info_attribute: comfort_description
+```
 
 ## Scientific Background
 
@@ -134,6 +213,42 @@ The indoor comfort assessment is based on principles from ISO 7730:2005 (Ergonom
 
 These models are used daily by meteorological services worldwide to provide accurate "feels like" temperatures to the public, making HA WeatherSense's calculations reliable for both comfort assessment and safety warnings.
 
+## Roadmap
+
+Future improvements planned for this integration:
+
+- Support for additional languages
+- More advanced indoor comfort models (PMV/PPD)
+- Integration with weather forecasts for predictive comfort
+- Custom comfort thresholds configuration
+- Dashboard card with visual comfort indicators
+- Support for UV index in comfort calculations
+- Improved solar radiation modeling
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Unrealistic temperature values**: If you see extremely high or low feels-like temperatures, check that your input sensors are providing reasonable values and have the correct units.
+
+2. **Incorrect comfort level**: The comfort level is determined based on the calculated feels-like temperature. If it seems incorrect, verify that the outdoor/indoor setting matches your sensor's actual location.
+
+3. **Sensor shows "unavailable"**: Ensure all required source sensors are available and providing valid readings.
+
+### Debug Logging
+
+To enable debug logs for troubleshooting:
+
+1. Add the following to your `configuration.yaml`:
+   ```yaml
+   logger:
+     default: info
+     logs:
+       custom_components.weathersense: debug
+   ```
+2. Restart Home Assistant
+3. Check the logs for detailed information about calculations and conversions
+
 ## Legal Disclaimer and Limitation of Liability  
 
 ### Software Disclaimer  
@@ -146,6 +261,8 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMA
 
 Author: SMKRV
 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) - see [LICENSE](LICENSE) for details.
+
+--- 
 
 ## 💡 Support the Project
 
