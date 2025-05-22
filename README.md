@@ -2,7 +2,7 @@
 
 # HA WeatherSense – Scientifically[*](#references) Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons
 
-  <img src="https://github.com/smkrv/ha-weathersense/blob/62564fad0c3f860222191aaeda29ce4c8cd5829b/custom_components/ha-weathersense/icons/icon%402x.png" alt="Logo: HA WeatherSense" style="width: 15%; max-width: 128px; max-height: 128px; aspect-ratio: 1/1; object-fit: contain;"/>
+  <img src="https://github.com/smkrv/ha-weathersense/blob/62564fad0c3f860222191aaeda29ce4c8cd5829b/custom_components/ha-weathersense/icons/icon%402x.png" alt="Logo: HA WeatherSense" style="width: 10%; max-width: 32px; max-height: 32px; aspect-ratio: 1/1; object-fit: contain;"/>
 
 </div>
 <div align="center">
