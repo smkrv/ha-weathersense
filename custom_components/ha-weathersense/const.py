@@ -7,7 +7,7 @@
 
 """Constants for the HA WeatherSense integration."""
 
-DOMAIN = "weathersense"
+DOMAIN = "ha-weathersense"
 NAME = "HA WeatherSense"
 
 # Configuration options
