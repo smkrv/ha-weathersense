@@ -1,11 +1,11 @@
 """
+The HA WeatherSense integration.
+
 @license: CC BY-NC-SA 4.0 International
 @author: SMKRV
 @github: https://github.com/smkrv/ha-weathersense
 @source: https://github.com/smkrv/ha-weathersense
 """
-
-"""The HA WeatherSense integration."""
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry

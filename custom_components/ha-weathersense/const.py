@@ -1,4 +1,11 @@
-"""Constants for the HA WeatherSense integration."""
+"""
+Constants for the HA WeatherSense integration.
+
+@license: CC BY-NC-SA 4.0 International
+@author: SMKRV
+@github: https://github.com/smkrv/ha-weathersense
+@source: https://github.com/smkrv/ha-weathersense
+"""
 
 DOMAIN = "ha-weathersense"
 NAME = "HA WeatherSense"

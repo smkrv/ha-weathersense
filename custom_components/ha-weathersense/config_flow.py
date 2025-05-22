@@ -1,11 +1,11 @@
 """
+Config flow for HA WeatherSense integration.
+
 @license: CC BY-NC-SA 4.0 International
 @author: SMKRV
 @github: https://github.com/smkrv/ha-weathersense
 @source: https://github.com/smkrv/ha-weathersense
 """
-
-"""Config flow for HA WeatherSense integration."""
 import logging
 import voluptuous as vol
 from homeassistant import config_entries

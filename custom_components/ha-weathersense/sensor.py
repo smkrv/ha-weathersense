@@ -1,11 +1,11 @@
 """
+Sensor platform for HA WeatherSense integration.
+
 @license: CC BY-NC-SA 4.0 International
 @author: SMKRV
 @github: https://github.com/smkrv/ha-weathersense
 @source: https://github.com/smkrv/ha-weathersense
 """
-
-"""Sensor platform for HA WeatherSense integration."""
 from __future__ import annotations
 
 import logging

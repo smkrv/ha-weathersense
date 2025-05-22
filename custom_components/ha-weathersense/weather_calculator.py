@@ -1,11 +1,11 @@
 """
+Weather calculation functions for HA WeatherSense.
+
 @license: CC BY-NC-SA 4.0 International
 @author: SMKRV
 @github: https://github.com/smkrv/ha-weathersense
 @source: https://github.com/smkrv/ha-weathersense
 """
-
-"""Weather calculation functions for HA WeatherSense."""
 import math
 from datetime import datetime
 from typing import Optional, Tuple
