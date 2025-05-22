@@ -1,5 +1,8 @@
+<div align="center">  
+
 # HA WeatherSense – Scientifically Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons
 
+</div>
 <div align="center">
 
 ![GitHub release](https://img.shields.io/github/v/release/smkrv/ha-weathersense?style=flat-square) ![GitHub last commit](https://img.shields.io/github/last-commit/smkrv/ha-weathersense?style=flat-square) [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg?style=flat-square)](https://creativecommons.org/licenses/by-nc-sa/4.0/) [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=flat-square)](https://github.com/hacs/integration) ![English](https://img.shields.io/badge/lang-EN-blue?style=flat-square)
@@ -12,6 +15,7 @@
 <br />
 
   Plug-and-play “feels-like” readings and an instant **comfy/not-comfy** flag for Home Assistant.
+<br />
   No jargon, just data that **works**!
 
 </div>
