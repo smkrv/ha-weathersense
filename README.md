@@ -41,7 +41,7 @@ An advanced Home Assistant integration for precise “feels-like” temperature 
 
 ### Manual Installation
 
-1. Download the latest release from the [GitHub repository](https://github.com/smkrv/ha-weathersense)
+1. Download the latest release from the [GitHub repository](https://github.com/smkrv/ha-weathersense/releases)
 2. Extract the `weathersense` folder from the `custom_components` directory
 3. Copy the folder to your Home Assistant's `custom_components` directory
 4. Restart Home Assistant
@@ -91,7 +91,7 @@ The sensor's icon changes automatically based on the current comfort level:
 | `cold` | mdi:weather-snowy |
 | `cool` | mdi:thermometer-low |
 | `slightly_cool` | mdi:thermometer-minus |
-| `comfortable` | mdi:thermometer |
+| `comfortable` | mdi:hand-okay |
 | `slightly_warm` | mdi:thermometer-plus |
 | `warm` | mdi:thermometer-high |
 | `hot` | mdi:weather-sunny |
@@ -173,9 +173,9 @@ automation:
         data:
           title: "Weather Alert"
           message: >
-            Outdoor conditions are now {{ states.sensor.outdoor_feels_like.attributes.comfort_description | lower }}.
-            Feels like {{ states.sensor.outdoor_feels_like.state }}°.
-            {{ states.sensor.outdoor_feels_like.attributes.comfort_explanation }}
+            Outdoor conditions are now {{ state_attr('sensor.outdoor_feels_like', 'comfort_description') | lower }}.
+            Feels like {{ states('sensor.outdoor_feels_like') }}°.
+            {{ state_attr('sensor.outdoor_feels_like', 'comfort_explanation') }}
 ```
 
 ### Display comfort level in dashboard
@@ -184,8 +184,14 @@ automation:
 type: entities
 entities:
   - entity: sensor.feels_like_temperature
-    secondary_info: attribute
-    secondary_info_attribute: comfort_description
+    secondary_info: last-changed
+    name: Feels Like Temperature
+    icon: mdi:thermometer
+    tap_action:
+      action: more-info
+    footer:
+      type: text
+      content: "{{ state_attr('sensor.feels_like_temperature', 'comfort_description') }}"
 ```
 
 ## Scientific Background
@@ -262,7 +268,7 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMA
 Author: SMKRV
 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) - see [LICENSE](LICENSE) for details.
 
---- 
+---
 
 ## 💡 Support the Project
 
@@ -281,3 +287,11 @@ If you want to say thanks financially, you can send a small token of appreciatio
 *Open-source is built by community passion!* 🚀
 
 ---
+
+<div align="center">
+
+Made with ❤️ for the Home Assistant Community
+
+[Report Bug](https://github.com/smkrv/ha-weathersense/issues) · [Request Feature](https://github.com/smkrv/ha-weathersense/issues)
+
+</div>
