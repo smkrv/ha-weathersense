@@ -11,7 +11,7 @@
   <img src="https://github.com/smkrv/ha-weathersense/blob/1e41b100b14864857b2af9d98415441a9195548e/assets/images/ha-weathersense-screenshot.png" alt="HA WeatherSense – Scientifically Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons" style="width: 50%; max-width: 256px; max-height: 128px; aspect-ratio: 2/1; object-fit: contain;"/>
 <br />
 
-  An advanced Home Assistant integration for precise “feels-like” temperature and comfort assessment, using scientifically validated multi-factor models.
+  Plug-and-play “feels-like” readings and an instant comfy/not-comfy flag for Home Assistant. No jargon, just data that works.
 
 </div>
 
