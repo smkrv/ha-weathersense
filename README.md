@@ -1,8 +1,15 @@
 # HA WeatherSense – Scientifically Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons
 
-[![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
+![GitHub release](https://img.shields.io/github/v/release/smkrv/ha-weathersense?style=flat-square) ![GitHub last commit](https://img.shields.io/github/last-commit/smkrv/ha-weathersense?style=flat-square) [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg?style=flat-square)](https://creativecommons.org/licenses/by-nc-sa/4.0/) [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=flat-square)](https://github.com/hacs/integration)  
+![English](https://img.shields.io/badge/lang-EN-blue?style=flat-square)
 
-An advanced Home Assistant integration for precise “feels-like” temperature and comfort assessment, using scientifically validated multi-factor models.
+<div align="center">  
+
+  <img src="https://github.com/smkrv/ha-weathersense/blob/1e41b100b14864857b2af9d98415441a9195548e/assets/images/ha-weathersense-screenshot.png" alt="HA WeatherSense – Scientifically Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons" style="width: 50%; max-width: 256px; max-height: 128px; aspect-ratio: 2/1; object-fit: contain;"/>
+
+  An advanced Home Assistant integration for precise “feels-like” temperature and comfort assessment, using scientifically validated multi-factor models.
+
+</div>
 
 > [!IMPORTANT]
 > Please note: As these are the initial release versions, bugs and errors may occur.
