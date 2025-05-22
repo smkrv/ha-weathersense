@@ -1,6 +1,6 @@
 <div align="center">  
 
-# HA WeatherSense – Scientifically Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons
+# HA WeatherSense – Scientifically[*](#references) Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons
 
 </div>
 <div align="center">
@@ -11,8 +11,8 @@
 
 <div align="center">  
 
-  <img src="https://github.com/smkrv/ha-weathersense/blob/1e41b100b14864857b2af9d98415441a9195548e/assets/images/ha-weathersense-screenshot.png" alt="HA WeatherSense – Scientifically[*](#references) Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons" style="width: 50%; max-width: 256px; max-height: 128px; aspect-ratio: 2/1; object-fit: contain;"/>
-   
+  <img src="https://github.com/smkrv/ha-weathersense/blob/1e41b100b14864857b2af9d98415441a9195548e/assets/images/ha-weathersense-screenshot.png" alt="HA WeatherSense – Scientifically Accurate Feels-Like Temp, Comfort Levels & Dynamic Icons" style="width: 50%; max-width: 256px; max-height: 128px; aspect-ratio: 2/1; object-fit: contain;"/>
+
 <br />
 
   Plug-and-play “feels-like” readings and an instant **comfy/not-comfy** flag for Home Assistant.
