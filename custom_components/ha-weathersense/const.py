@@ -6,8 +6,8 @@ Constants for the HA WeatherSense integration."
 @github: https://github.com/smkrv/ha-weathersense
 @source: https://github.com/smkrv/ha-weathersense
 """
-DOMAIN = "ha_weathersense"
-NAME = "HA WeatherSense"
+DOMAIN = "weathersense"
+NAME = "WeatherSense"
 
 # Configuration options
 CONF_TEMPERATURE_SENSOR = "temperature_sensor"

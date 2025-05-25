@@ -1,6 +1,6 @@
 {
-  "domain": "ha_weathersense",
-  "name": "HA WeatherSense",
+  "domain": "weathersense",
+  "name": "WeatherSense",
   "codeowners": ["@smkrv"],
   "config_flow": true,
   "dependencies": [],
