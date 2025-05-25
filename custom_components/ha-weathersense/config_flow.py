@@ -1,6 +1,6 @@
 """
 Config flow for HA WeatherSense integration.
- 
+
 @license: CC BY-NC-SA 4.0 International
 @author: SMKRV
 @github: https://github.com/smkrv/ha-weathersense

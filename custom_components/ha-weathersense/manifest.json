@@ -1,5 +1,5 @@
 {
-  "domain": "ha-weathersense",
+  "domain": "ha_weathersense",
   "name": "HA WeatherSense",
   "codeowners": ["@smkrv"],
   "config_flow": true,
@@ -8,5 +8,5 @@
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/smkrv/ha-weathersense/issues",
   "requirements": [],
-  "version": "1.0.2"
+  "version": "1.0.3"
 }
