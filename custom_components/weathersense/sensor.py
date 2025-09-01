@@ -321,9 +321,4 @@ class WeatherSenseSensor(SensorEntity):
             self._attr_extra_state_attributes[ATTR_PRESSURE] = round(self._pressure, 2)
             self._attr_extra_state_attributes[f"{ATTR_PRESSURE}_unit"] = UnitOfPressure.KPA
 
-            self._attr_extra_state_attributes.update({
-                f"{ATTR_TEMPERATURE}_unit": UnitOfTemperature.CELSIUS,
-                f"{ATTR_WIND_SPEED}_unit": UnitOfSpeed.METERS_PER_SECOND,
-            })
-
         self.async_write_ha_state()

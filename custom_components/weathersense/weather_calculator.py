@@ -6,9 +6,12 @@ Weather calculation functions for HA WeatherSense.
 @github: https://github.com/smkrv/ha-weathersense
 @source: https://github.com/smkrv/ha-weathersense
 """
+import logging
 import math
 from datetime import datetime
 from typing import Optional, Tuple
+
+_LOGGER = logging.getLogger(__name__)
 
 # Constants for calculations
 STANDARD_PRESSURE = 101.3  # kPa
@@ -130,9 +133,6 @@ def calculate_feels_like(
     Returns:
         Tuple of (feels_like_temp, calculation_method, comfort_level)
     """
-    import logging
-    _LOGGER = logging.getLogger(__name__)
-
     method = ""
 
     if is_outdoor:

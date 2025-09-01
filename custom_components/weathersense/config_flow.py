@@ -81,7 +81,6 @@ class WeatherSenseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.EntitySelectorConfig(domain="sensor")
                     ),
                     vol.Optional(CONF_IS_OUTDOOR, default=DEFAULT_IS_OUTDOOR): bool,
-                    # Добавьте следующую строку:
                     vol.Optional(CONF_DISPLAY_UNIT): selector.SelectSelector(
                         selector.SelectSelectorConfig(
                             options=[
