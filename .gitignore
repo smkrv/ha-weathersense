@@ -215,3 +215,5 @@ Thumbs.db
 *.txt
 *.pdf
 .gitignore
+.code-workspace
+*.code-workspace
