@@ -22,39 +22,45 @@ def calculate_heat_index(temperature: float, humidity: float) -> float:
     Calculate Heat Index (HI) for high temperatures (≥ 27°C).
 
     Uses the NWS algorithm with adjustments for edge cases.
+    Note: The formula works in Fahrenheit, so we convert inputs and outputs.
     """
-    t = temperature
+    # Convert Celsius to Fahrenheit for calculation
+    t_f = (temperature * 9/5) + 32
     rh = humidity
 
     # Simple formula for lower humidity or temperature conditions
-    if rh < 40 or t < 27:
-        hi = 0.5 * (t + 61.0 + ((t - 68.0) * 1.2) + (rh * 0.094))
-        return (hi + t) / 2  # Average with actual temperature for more reasonable results
+    # 80°F is approximately 27°C
+    if rh < 40 or t_f < 80:
+        hi_f = 0.5 * (t_f + 61.0 + ((t_f - 68.0) * 1.2) + (rh * 0.094))
+        hi_f = (hi_f + t_f) / 2  # Average with actual temperature for more reasonable results
+    else:
+        # Full Rothfusz regression formula (works in Fahrenheit)
+        hi_f = -42.379
+        hi_f += 2.04901523 * t_f
+        hi_f += 10.14333127 * rh
+        hi_f -= 0.22475541 * t_f * rh
+        hi_f -= 0.00683783 * t_f * t_f
+        hi_f -= 0.05481717 * rh * rh
+        hi_f += 0.00122874 * t_f * t_f * rh
+        hi_f += 0.00085282 * t_f * rh * rh
+        hi_f -= 0.00000199 * t_f * t_f * rh * rh
 
-    # Full Rothfusz regression formula
-    hi = -42.379
-    hi += 2.04901523 * t
-    hi += 10.14333127 * rh
-    hi -= 0.22475541 * t * rh
-    hi -= 0.00683783 * t * t
-    hi -= 0.05481717 * rh * rh
-    hi += 0.00122874 * t * t * rh
-    hi += 0.00085282 * t * rh * rh
-    hi -= 0.00000199 * t * t * rh * rh
+        # Adjustments for extreme conditions (Fahrenheit values)
+        if rh < 13 and t_f >= 80 and t_f <= 112:
+            adjustment = ((13 - rh) / 4) * math.sqrt((17 - abs(t_f - 95)) / 17)
+            hi_f -= adjustment
+        elif rh > 85 and t_f >= 80 and t_f <= 87:
+            adjustment = ((rh - 85) / 10) * ((87 - t_f) / 5)
+            hi_f += adjustment
 
-    # Adjustments for extreme conditions
-    if rh < 13 and t >= 27 and t <= 37:
-        adjustment = ((13 - rh) / 4) * math.sqrt((17 - abs(t - 95)) / 17)
-        hi -= adjustment
-    elif rh > 85 and t >= 27 and t <= 31:
-        adjustment = ((rh - 85) / 10) * ((31 - t) / 4)
-        hi += adjustment
+    # Convert back to Celsius
+    hi_c = (hi_f - 32) * 5/9
 
     # Sanity check - heat index should not be unreasonably high
-    if hi > 70:  # Extremely high value in Celsius
-        hi = min(hi, t + 25)  # Limit to 25 degrees above actual temperature
+    if hi_c > 70:  # Extremely high value in Celsius
+        hi_c = min(hi_c, temperature + 25)  # Limit to 25 degrees above actual temperature
 
-    return hi
+    return hi_c
 
 
 def calculate_wind_chill(temperature: float, wind_speed: float) -> float:
