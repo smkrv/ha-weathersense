@@ -178,3 +178,9 @@ Thumbs.db
 *.pdf
 *.psd
 *.zip
+
+# Temporary folders
+_temp*/
+
+# Card development (separate repository)
+weathersense-card/
