@@ -44,6 +44,17 @@
 - Automatic unit conversion for any input sensors
 - Easy setup through the UI
 
+## 🎨 Companion Card
+
+Looking for a beautiful way to display your WeatherSense data? Check out the [**WeatherSense Card**](https://github.com/smkrv/ha-weathersense-card) - a custom Lovelace card with modern glassmorphism design!
+
+**Features:**
+- 11 dynamic color themes based on comfort levels
+- Multi-language support (EN, RU, DE, ES, HI, ZH-CN)
+- Smart unit conversion (°C/°F, km/h/mph)
+- 100% offline operation
+- [Install via HACS →](https://github.com/smkrv/ha-weathersense-card)
+
 ## Installation
 
 ### HACS (Recommended)
