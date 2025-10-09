@@ -98,18 +98,47 @@ def apply_solar_correction(
         time_of_day = datetime.now()
 
     hour = time_of_day.hour
-
-    # Simple day/night model
-    if 10 <= hour <= 16:  # Daytime (10 AM - 4 PM)
-        # Adjust for cloudiness (0 = clear sky, 100 = fully cloudy)
-        solar_factor = 8 * (1 - (cloudiness / 100))
-        return feels_like + solar_factor
-    elif 22 <= hour or hour <= 4:  # Night (10 PM - 4 AM)
-        return feels_like - 2
-    else:  # Dawn/Dusk
-        return feels_like
-
-    return feels_like
+    
+    # More realistic solar radiation model
+    solar_factor = 0
+    
+    # Daytime solar radiation effect (sunrise to sunset approximately)
+    if 6 <= hour <= 18:
+        # Peak solar effect at solar noon (13:00)
+        # Using a sine wave to model solar intensity throughout the day
+        hours_from_sunrise = hour - 6
+        solar_intensity = math.sin(math.pi * hours_from_sunrise / 12)
+        
+        # Maximum solar correction is temperature-dependent
+        # Higher temperatures get slightly more solar correction
+        # But overall much more conservative than before
+        if feels_like >= 25:
+            max_solar_correction = 2.5  # Max 2.5°C for hot days
+        elif feels_like >= 15:
+            max_solar_correction = 2.0  # Max 2°C for warm days
+        elif feels_like >= 5:
+            max_solar_correction = 1.5  # Max 1.5°C for cool days
+        else:
+            max_solar_correction = 1.0  # Max 1°C for cold days
+        
+        # Apply cloudiness reduction (0 = clear sky, 100 = fully cloudy)
+        cloud_factor = 1 - (cloudiness / 100)
+        
+        # Calculate final solar factor
+        solar_factor = max_solar_correction * solar_intensity * cloud_factor
+        
+        _LOGGER.debug(
+            "Solar correction: hour=%s, intensity=%.2f, max_correction=%.1f°C, "
+            "cloud_factor=%.2f, final_factor=%.2f°C",
+            hour, solar_intensity, max_solar_correction, cloud_factor, solar_factor
+        )
+    
+    # Nighttime cooling effect (minor)
+    elif 22 <= hour or hour <= 4:
+        # Very slight cooling at night
+        solar_factor = -0.5
+    
+    return feels_like + solar_factor
 
 
 def apply_pressure_correction(feels_like: float, pressure: Optional[float] = None) -> float:
