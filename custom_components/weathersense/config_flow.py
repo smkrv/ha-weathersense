@@ -23,6 +23,8 @@ from .const import (
     CONF_PRESSURE_SENSOR,
     CONF_IS_OUTDOOR,
     CONF_SOLAR_RADIATION_SENSOR,
+    CONF_WIND_DIRECTION_SENSOR,
+    CONF_WIND_DIRECTION_CORRECTION,
     DEFAULT_NAME,
     DEFAULT_IS_OUTDOOR,
     CONF_DISPLAY_UNIT,
@@ -80,6 +82,10 @@ class WeatherSenseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_SOLAR_RADIATION_SENSOR): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="sensor")
                     ),
+                    vol.Optional(CONF_WIND_DIRECTION_SENSOR): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="sensor")
+                    ),
+                    vol.Optional(CONF_WIND_DIRECTION_CORRECTION, default=False): bool,
                     vol.Optional(CONF_IS_OUTDOOR, default=DEFAULT_IS_OUTDOOR): bool,
                     vol.Optional(CONF_DISPLAY_UNIT): selector.SelectSelector(
                         selector.SelectSelectorConfig(
@@ -153,6 +159,23 @@ class WeatherSenseOptionsFlow(config_entries.OptionsFlow):
             options[vol.Optional(CONF_SOLAR_RADIATION_SENSOR)] = selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor")
             )
+
+        # Wind direction sensor (optional)
+        wind_direction_value = current_config.get(CONF_WIND_DIRECTION_SENSOR)
+        if wind_direction_value is not None:
+            options[vol.Optional(CONF_WIND_DIRECTION_SENSOR, default=wind_direction_value)] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor")
+            )
+        else:
+            options[vol.Optional(CONF_WIND_DIRECTION_SENSOR)] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor")
+            )
+
+        # Wind direction correction toggle (experimental, default False)
+        options[vol.Optional(
+            CONF_WIND_DIRECTION_CORRECTION,
+            default=current_config.get(CONF_WIND_DIRECTION_CORRECTION, False)
+        )] = bool
 
         # Boolean and select fields can have defaults
         options[vol.Optional(CONF_IS_OUTDOOR, default=current_config.get(CONF_IS_OUTDOOR, DEFAULT_IS_OUTDOOR))] = bool

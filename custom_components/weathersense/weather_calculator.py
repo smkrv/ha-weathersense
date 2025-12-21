@@ -153,6 +153,62 @@ def apply_pressure_correction(feels_like: float, pressure: Optional[float] = Non
     return feels_like + correction
 
 
+def apply_wind_direction_correction(
+    feels_like: float,
+    wind_direction: Optional[float],
+    latitude: Optional[float] = None,
+    max_correction: float = 1.0,
+) -> Tuple[float, float]:
+    """
+    Apply heuristic wind direction correction to feels-like temperature.
+    
+    This is an EXPERIMENTAL heuristic, not a scientifically validated formula.
+    The assumption is that in the Northern Hemisphere, north winds are typically
+    colder (polar air masses) and south winds are warmer (tropical air masses).
+    The effect is inverted in the Southern Hemisphere.
+    
+    Args:
+        feels_like: Current feels-like temperature in Celsius
+        wind_direction: Wind direction in degrees (0=North, 90=East, 180=South, 270=West)
+        latitude: Location latitude to determine hemisphere (positive=North, negative=South)
+        max_correction: Maximum correction in degrees Celsius (default: 1.0)
+    
+    Returns:
+        Tuple of (corrected_feels_like, correction_applied)
+    """
+    if wind_direction is None:
+        return feels_like, 0.0
+    
+    # Normalize wind direction to 0-360 range
+    wind_direction = wind_direction % 360
+    
+    # Calculate north-south component using cosine
+    # cos(0°) = 1 (north), cos(180°) = -1 (south)
+    north_factor = math.cos(math.radians(wind_direction))
+    
+    # Determine hemisphere from latitude (default to Northern if not specified)
+    is_northern_hemisphere = latitude is None or latitude >= 0
+    
+    # In Northern Hemisphere: north wind = colder, south wind = warmer
+    # In Southern Hemisphere: south wind = colder, north wind = warmer
+    if is_northern_hemisphere:
+        correction = -north_factor * max_correction
+    else:
+        correction = north_factor * max_correction
+    
+    _LOGGER.debug(
+        "Wind direction correction: direction=%s°, latitude=%s, "
+        "hemisphere=%s, north_factor=%.2f, correction=%.2f°C",
+        wind_direction,
+        latitude,
+        "N" if is_northern_hemisphere else "S",
+        north_factor,
+        correction,
+    )
+    
+    return feels_like + correction, correction
+
+
 def calculate_feels_like(
     temperature: float,
     humidity: float,
@@ -161,14 +217,30 @@ def calculate_feels_like(
     is_outdoor: bool = True,
     time_of_day: Optional[datetime] = None,
     cloudiness: float = 0,
-) -> Tuple[float, str, str]:
+    wind_direction: Optional[float] = None,
+    latitude: Optional[float] = None,
+    enable_wind_direction_correction: bool = False,
+) -> Tuple[float, str, str, float]:
     """
     Calculate the feels-like temperature and determine comfort level.
 
+    Args:
+        temperature: Air temperature in Celsius
+        humidity: Relative humidity in percent
+        wind_speed: Wind speed in m/s
+        pressure: Atmospheric pressure in kPa
+        is_outdoor: Whether this is an outdoor calculation
+        time_of_day: Current time for solar correction
+        cloudiness: Cloud cover percentage (0-100)
+        wind_direction: Wind direction in degrees (0=North, 90=East, 180=South, 270=West)
+        latitude: Location latitude for hemisphere detection
+        enable_wind_direction_correction: Whether to apply experimental wind direction correction
+
     Returns:
-        Tuple of (feels_like_temp, calculation_method, comfort_level)
+        Tuple of (feels_like_temp, calculation_method, comfort_level, wind_direction_correction)
     """
     method = ""
+    wind_dir_correction = 0.0
 
     if is_outdoor:
         # Outdoor calculation
@@ -187,6 +259,12 @@ def calculate_feels_like(
         feels_like = apply_solar_correction(feels_like, time_of_day, cloudiness)
         if pressure is not None:
             feels_like = apply_pressure_correction(feels_like, pressure)
+
+        # Apply experimental wind direction correction if enabled
+        if enable_wind_direction_correction and wind_direction is not None:
+            feels_like, wind_dir_correction = apply_wind_direction_correction(
+                feels_like, wind_direction, latitude
+            )
 
         if abs(feels_like - original_feels_like) > 0.1:
             _LOGGER.debug(
@@ -210,7 +288,7 @@ def calculate_feels_like(
         method = "Indoor Comfort Model"
         comfort_level = determine_indoor_comfort(feels_like, humidity)
 
-    return feels_like, method, comfort_level
+    return feels_like, method, comfort_level, wind_dir_correction
 
 
 def calculate_indoor_feels_like(temperature: float, humidity: float) -> float:

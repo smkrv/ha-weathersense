@@ -12,6 +12,8 @@
           "wind_speed_sensor": "Windgeschwindigkeitssensor (optional)",
           "pressure_sensor": "Drucksensor (optional)",
           "solar_radiation_sensor": "Solarstrahlungssensor (optional)",
+          "wind_direction_sensor": "Windrichtungssensor (optional)",
+          "wind_direction_correction": "Windrichtungskorrektur aktivieren (experimentell)",
           "is_outdoor": "Ist dies für Außenbedingungen?",
           "display_unit": "Temperaturanzeigeeinheit"
         }
@@ -32,6 +34,8 @@
           "wind_speed_sensor": "Windgeschwindigkeitssensor (optional)",
           "pressure_sensor": "Drucksensor (optional)",
           "solar_radiation_sensor": "Solarstrahlungssensor (optional)",
+          "wind_direction_sensor": "Windrichtungssensor (optional)",
+          "wind_direction_correction": "Windrichtungskorrektur aktivieren (experimentell)",
           "is_outdoor": "Ist dies für Außenbedingungen?",
           "display_unit": "Temperaturanzeigeeinheit"
         }

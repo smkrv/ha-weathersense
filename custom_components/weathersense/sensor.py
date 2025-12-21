@@ -40,6 +40,8 @@ from .const import (
     CONF_PRESSURE_SENSOR,
     CONF_IS_OUTDOOR,
     CONF_SOLAR_RADIATION_SENSOR,
+    CONF_WIND_DIRECTION_SENSOR,
+    CONF_WIND_DIRECTION_CORRECTION,
     ATTR_COMFORT_LEVEL,
     ATTR_COMFORT_DESCRIPTION,
     ATTR_COMFORT_EXPLANATION,
@@ -51,6 +53,8 @@ from .const import (
     ATTR_IS_OUTDOOR,
     ATTR_TIME_OF_DAY,
     ATTR_IS_COMFORTABLE,
+    ATTR_WIND_DIRECTION,
+    ATTR_WIND_DIRECTION_CORRECTION,
     COMFORT_DESCRIPTIONS,
     COMFORT_EXPLANATIONS,
     COMFORT_ICONS,
@@ -83,6 +87,8 @@ async def async_setup_entry(
         config.get(CONF_SOLAR_RADIATION_SENSOR),
         config.get(CONF_IS_OUTDOOR, True),
         config.get(CONF_DISPLAY_UNIT),
+        config.get(CONF_WIND_DIRECTION_SENSOR),
+        config.get(CONF_WIND_DIRECTION_CORRECTION, False),
     )
 
     async_add_entities([sensor])
@@ -108,6 +114,8 @@ class WeatherSenseSensor(SensorEntity):
         solar_radiation_entity_id: Optional[str] = None,
         is_outdoor: bool = True,
         display_unit: Optional[str] = None,
+        wind_direction_entity_id: Optional[str] = None,
+        wind_direction_correction: bool = False,
     ) -> None:
         """Initialize the sensor."""
         self.hass = hass
@@ -124,6 +132,8 @@ class WeatherSenseSensor(SensorEntity):
         self._wind_speed_entity_id = wind_speed_entity_id
         self._pressure_entity_id = pressure_entity_id
         self._solar_radiation_entity_id = solar_radiation_entity_id
+        self._wind_direction_entity_id = wind_direction_entity_id
+        self._wind_direction_correction_enabled = wind_direction_correction
         self._is_outdoor = is_outdoor
 
         # Set display unit
@@ -138,6 +148,8 @@ class WeatherSenseSensor(SensorEntity):
         self._wind_speed = None
         self._pressure = None
         self._solar_radiation = None
+        self._wind_direction = None
+        self._wind_direction_correction = 0.0
         self._calculation_method = None
         self._comfort_level = None
 
@@ -163,6 +175,8 @@ class WeatherSenseSensor(SensorEntity):
             entities_to_track.append(self._pressure_entity_id)
         if self._solar_radiation_entity_id:
             entities_to_track.append(self._solar_radiation_entity_id)
+        if self._wind_direction_entity_id:
+            entities_to_track.append(self._wind_direction_entity_id)
 
         # Initial data fetch
         await self._update_state()
@@ -259,11 +273,25 @@ class WeatherSenseSensor(SensorEntity):
                 except (ValueError, TypeError):
                     _LOGGER.debug("Invalid pressure value")
 
+        # Get wind direction if configured
+        wind_direction = None
+        if self._wind_direction_entity_id:
+            wind_dir_state = self.hass.states.get(self._wind_direction_entity_id)
+            if wind_dir_state:
+                try:
+                    wind_direction = float(wind_dir_state.state)
+                    self._wind_direction = wind_direction
+                except (ValueError, TypeError):
+                    _LOGGER.debug("Invalid wind direction value")
+
         # Calculate feels-like temperature
         current_time = dt_util.now()
         cloudiness = 0  # Default value, could be improved with weather integration
 
-        feels_like, method, comfort = calculate_feels_like(
+        # Get latitude from Home Assistant config for hemisphere detection
+        latitude = self.hass.config.latitude
+
+        feels_like, method, comfort, wind_dir_correction = calculate_feels_like(
             self._temperature,
             self._humidity,
             wind_speed,
@@ -271,7 +299,11 @@ class WeatherSenseSensor(SensorEntity):
             self._is_outdoor,
             current_time,
             cloudiness,
+            wind_direction,
+            latitude,
+            self._wind_direction_correction_enabled,
         )
+        self._wind_direction_correction = wind_dir_correction
 
         if self._attr_native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
             feels_like_f = (feels_like * 9/5) + 32
@@ -320,5 +352,10 @@ class WeatherSenseSensor(SensorEntity):
         if self._pressure is not None:
             self._attr_extra_state_attributes[ATTR_PRESSURE] = round(self._pressure, 2)
             self._attr_extra_state_attributes[f"{ATTR_PRESSURE}_unit"] = UnitOfPressure.KPA
+        if self._wind_direction is not None:
+            self._attr_extra_state_attributes[ATTR_WIND_DIRECTION] = self._wind_direction
+            self._attr_extra_state_attributes[f"{ATTR_WIND_DIRECTION}_unit"] = "°"
+        if self._wind_direction_correction_enabled and self._wind_direction_correction != 0.0:
+            self._attr_extra_state_attributes[ATTR_WIND_DIRECTION_CORRECTION] = round(self._wind_direction_correction, 2)
 
         self.async_write_ha_state()
