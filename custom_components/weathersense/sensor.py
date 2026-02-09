@@ -42,6 +42,9 @@ from .const import (
     CONF_SOLAR_RADIATION_SENSOR,
     CONF_WIND_DIRECTION_SENSOR,
     CONF_WIND_DIRECTION_CORRECTION,
+    CONF_SMOOTHING_ENABLED,
+    CONF_SMOOTHING_FACTOR,
+    DEFAULT_SMOOTHING_FACTOR,
     ATTR_COMFORT_LEVEL,
     ATTR_COMFORT_DESCRIPTION,
     ATTR_COMFORT_EXPLANATION,
@@ -89,6 +92,8 @@ async def async_setup_entry(
         config.get(CONF_DISPLAY_UNIT),
         config.get(CONF_WIND_DIRECTION_SENSOR),
         config.get(CONF_WIND_DIRECTION_CORRECTION, False),
+        config.get(CONF_SMOOTHING_ENABLED, False),
+        config.get(CONF_SMOOTHING_FACTOR, DEFAULT_SMOOTHING_FACTOR),
     )
 
     async_add_entities([sensor])
@@ -116,6 +121,8 @@ class WeatherSenseSensor(SensorEntity):
         display_unit: Optional[str] = None,
         wind_direction_entity_id: Optional[str] = None,
         wind_direction_correction: bool = False,
+        smoothing_enabled: bool = False,
+        smoothing_factor: float = 0.3,
     ) -> None:
         """Initialize the sensor."""
         self.hass = hass
@@ -152,6 +159,11 @@ class WeatherSenseSensor(SensorEntity):
         self._wind_direction_correction = 0.0
         self._calculation_method = None
         self._comfort_level = None
+
+        # EMA smoothing
+        self._smoothing_enabled = smoothing_enabled
+        self._smoothing_factor = max(0.05, min(0.95, smoothing_factor))
+        self._previous_smoothed_value = None
 
         self._attr_icon = "mdi:thermometer"
 
@@ -307,9 +319,19 @@ class WeatherSenseSensor(SensorEntity):
 
         if self._attr_native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
             feels_like_f = (feels_like * 9/5) + 32
-            self._attr_native_value = round(feels_like_f, 1)
+            raw_value = round(feels_like_f, 1)
         else:
-            self._attr_native_value = round(feels_like, 1)
+            raw_value = round(feels_like, 1)
+
+        # Apply EMA smoothing if enabled
+        if self._smoothing_enabled and self._previous_smoothed_value is not None:
+            alpha = self._smoothing_factor
+            smoothed = round(alpha * raw_value + (1 - alpha) * self._previous_smoothed_value, 1)
+            self._attr_native_value = smoothed
+            self._previous_smoothed_value = smoothed
+        else:
+            self._attr_native_value = raw_value
+            self._previous_smoothed_value = raw_value
 
         self._calculation_method = method
         self._comfort_level = comfort

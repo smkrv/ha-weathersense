@@ -14,6 +14,8 @@
           "solar_radiation_sensor": "Sensor de Radiación Solar (opcional)",
           "wind_direction_sensor": "Sensor de Dirección del Viento (opcional)",
           "wind_direction_correction": "Habilitar corrección por dirección del viento (experimental)",
+          "smoothing_enabled": "Habilitar suavizado de salida (filtro EMA)",
+          "smoothing_factor": "Sensibilidad del suavizado (menor = más suave, mayor = más rápido)",
           "is_outdoor": "¿Es esto para condiciones exteriores?",
           "display_unit": "Unidad de Visualización de Temperatura"
         }
@@ -36,6 +38,8 @@
           "solar_radiation_sensor": "Sensor de Radiación Solar (opcional)",
           "wind_direction_sensor": "Sensor de Dirección del Viento (opcional)",
           "wind_direction_correction": "Habilitar corrección por dirección del viento (experimental)",
+          "smoothing_enabled": "Habilitar suavizado de salida (filtro EMA)",
+          "smoothing_factor": "Sensibilidad del suavizado (menor = más suave, mayor = más rápido)",
           "is_outdoor": "¿Es esto para condiciones exteriores?",
           "display_unit": "Unidad de Visualización de Temperatura"
         }
