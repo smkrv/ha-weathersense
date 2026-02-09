@@ -64,14 +64,19 @@ def calculate_heat_index(temperature: float, humidity: float) -> float:
 
 
 def calculate_wind_chill(temperature: float, wind_speed: float) -> float:
-    """Calculate Wind Chill Temperature (WCT) for low temperatures (≤ 10°C)."""
+    """Calculate Wind Chill Temperature (WCT) for low temperatures (≤ 10°C).
+
+    Uses the North American / UK wind chill index formula.
+    Temperature in °C, wind_speed in m/s (converted to km/h for the formula).
+    """
     t = temperature
-    v = max(wind_speed, 1.34)  # Wind speed must be at least 1.34 m/s
+    # Convert m/s to km/h as the formula requires km/h
+    v_kmh = max(wind_speed * 3.6, 4.828)  # Minimum 4.828 km/h (≈1.34 m/s)
 
     wct = 13.12
     wct += 0.6215 * t
-    wct -= 11.37 * math.pow(v, 0.16)
-    wct += 0.3965 * t * math.pow(v, 0.16)
+    wct -= 11.37 * math.pow(v_kmh, 0.16)
+    wct += 0.3965 * t * math.pow(v_kmh, 0.16)
 
     return wct
 
@@ -334,12 +339,14 @@ def determine_outdoor_comfort(feels_like: float, method: str) -> str:
             return COMFORT_EXTREME_COLD
         elif feels_like <= -40:
             return COMFORT_VERY_COLD
-        elif feels_like <= -28:
+        elif feels_like <= -27:
             return COMFORT_COLD
-        elif feels_like <= -10:
+        elif feels_like <= -13:
             return COMFORT_COOL
-        else:
+        elif feels_like <= 0:
             return COMFORT_SLIGHTLY_COOL
+        else:
+            return COMFORT_COMFORTABLE
 
     else:  # Steadman or other
         if feels_like > 46:
