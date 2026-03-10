@@ -43,17 +43,20 @@
 
 ## 🎨 Companion Card
 
-Looking for a beautiful way to display your WeatherSense data? Check out the [**WeatherSense Card**](https://github.com/smkrv/ha-weathersense-card) — a custom Lovelace card with modern glassmorphism design!
+Check out the [**WeatherSense Card**](https://github.com/smkrv/ha-weathersense-card) — a beautiful custom Lovelace card with hybrid glass+material design and dynamic comfort level visualization.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/smkrv/ha-weathersense-card/main/screenshots/screenshot.webp" alt="WeatherSense Card" style="max-width: 500px;" width="500" />
 </p>
 
 **Features:**
+- Hybrid glass+material design with comfort-level color glow
+- Three size modes: normal, compact, ultra-compact
+- Extended metrics: temperature, humidity, wind speed, pressure
+- Per-metric unit configuration (°C/°F, m/s/km/h/mph/knots, hPa/mmHg/inHg/kPa)
 - 11 dynamic color themes based on comfort levels
+- Light/dark theme support with smooth animations
 - Multi-language support (EN, RU, DE, ES, HI, ZH-CN, CS)
-- Smart unit conversion (°C/°F, km/h/mph)
-- 100% offline operation
 - [Install via HACS →](https://github.com/smkrv/ha-weathersense-card)
 
 ## Installation
