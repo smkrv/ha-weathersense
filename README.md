@@ -230,26 +230,35 @@ entities:
 
 ## Scientific Background
 
-The calculations used in HA WeatherSense are based on peer-reviewed scientific models and official standards used by meteorological organizations worldwide:
+The calculations used in HA WeatherSense are based on peer-reviewed scientific models and official standards used by meteorological organizations worldwide. All formula coefficients have been verified against original sources.
 
 ### Heat Index
-The Heat Index formula is the official algorithm used by the US National Weather Service (NWS), developed by Rothfusz (1990) and refined by the NWS. It has been validated through extensive physiological studies measuring human heat stress responses.
+The Heat Index formula is the official Rothfusz regression equation from NWS Technical Attachment [SR 90-23](https://www.weather.gov/media/ffc/ta_htindx.PDF), which approximates Steadman's (1979) original heat index table. Low-humidity and high-humidity adjustments follow the [NWS Weather Prediction Center algorithm](https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml). The formula operates in Fahrenheit internally and has been validated through extensive physiological studies measuring human heat stress responses.
 
 ### Wind Chill Temperature
-The Wind Chill model implemented is the standard adopted jointly by Environment Canada and the US National Weather Service in 2001, based on research by Osczevski and Bluestein (2005). It was developed using human trials that measured facial heat loss in wind tunnel tests.
+The Wind Chill model implements the formula jointly adopted by Environment Canada and the US National Weather Service for the 2001/2002 winter season, developed by Osczevski and Bluestein through the [Joint Action Group for Temperature Indices (JAG/TI)](https://www.weather.gov/ffc/wci). The formula was calibrated using wind tunnel tests with 12 human subjects at DCIEM (Defence and Civil Institute of Environmental Medicine) in Toronto, measuring facial heat loss under controlled conditions.
 
 ### Steadman Apparent Temperature
-For moderate temperatures, we use Steadman's (1994) Apparent Temperature model, which has been adopted by the Australian Bureau of Meteorology and other international weather services. It accounts for both humidity and wind effects in a unified equation.
+For moderate temperatures, we use Steadman's (1994) Apparent Temperature model: `AT = T + 0.33e − 0.70v − 4.00`, where vapor pressure `e` is calculated via the Tetens equation. This formula has been adopted by the [Australian Bureau of Meteorology](https://www.bom.gov.au/info/thermal_stress/) and other international weather services. It accounts for both humidity and wind effects in a unified equation.
+
+### Solar Radiation Correction
+The diurnal solar intensity is modeled using a half-sine function, a well-established approach in solar energy literature following Collares-Pereira & Rabl (1979). A simplified fixed 6:00–18:00 window is used instead of actual sunrise/sunset times.
+
+### Pressure Correction
+A simplified linear heuristic `0.1 × (101.3 − pressure)` is applied for atmospheric pressure deviations from the [standard atmosphere](https://en.wikipedia.org/wiki/Standard_atmosphere_(unit)) (101.325 kPa, 10th CGPM 1954). **Note:** this is a custom approximation, not a peer-reviewed formula.
 
 ### Indoor Comfort Model
-The indoor comfort assessment is based on principles from ISO 7730:2005 (Ergonomics of the thermal environment) and ASHRAE Standard 55-2020, which define internationally recognized thermal comfort standards.
+The indoor comfort assessment is based on principles from ISO 7730 (Ergonomics of the thermal environment) and ASHRAE Standard 55 (Thermal Environmental Conditions for Human Occupancy), which define internationally recognized thermal comfort standards.
 
 ### References
-1. Steadman, R.G. (1994). "Norms of apparent temperature in Australia." Australian Meteorological Magazine, 43, 1-16.
-2. Rothfusz, L.P. (1990). "The heat index equation." National Weather Service Technical Attachment (SR 90-23).
-3. Osczevski, R., & Bluestein, M. (2005). "The new wind chill equivalent temperature chart." Bulletin of the American Meteorological Society, 86(10), 1453-1458.
-4. ISO 7730:2005. "Ergonomics of the thermal environment."
-5. ASHRAE Standard 55-2020. "Thermal Environmental Conditions for Human Occupancy."
+1. Rothfusz, L.P. (1990). "The Heat Index 'Equation'." NWS Technical Attachment SR/SSD 90-23. [[PDF]](https://www.weather.gov/media/ffc/ta_htindx.PDF)
+2. Steadman, R.G. (1994). "Norms of apparent temperature in Australia." *Australian Meteorological Magazine*, 43, 1–16. [[PDF]](http://www.bom.gov.au/jshess/docs/1994/steadman.pdf)
+3. Osczevski, R. & Bluestein, M. (2005). "The new wind chill equivalent temperature chart." *Bulletin of the American Meteorological Society*, 86(10), 1453–1458. [DOI: 10.1175/BAMS-86-10-1453](https://doi.org/10.1175/BAMS-86-10-1453)
+4. Collares-Pereira, M. & Rabl, A. (1979). "The average distribution of solar radiation — correlations between diffuse and hemispherical and between daily and hourly insolation values." *Solar Energy*, 22, 155–164. [DOI: 10.1016/0038-092X(79)90100-2](https://doi.org/10.1016/0038-092X(79)90100-2)
+5. ISO 7730. "Ergonomics of the thermal environment — Analytical determination and interpretation of thermal comfort using calculation of the PMV and PPD indices and local thermal comfort criteria."
+6. ASHRAE Standard 55. "Thermal Environmental Conditions for Human Occupancy."
+7. NWS Weather Prediction Center. [Heat Index Calculation](https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml), [Wind Chill Chart](https://www.weather.gov/safety/cold-wind-chill-chart).
+8. Australian Bureau of Meteorology. [Thermal Comfort observations](https://www.bom.gov.au/info/thermal_stress/).
 
 These models are used daily by meteorological services worldwide to provide accurate "feels like" temperatures to the public, making HA WeatherSense's calculations reliable for both comfort assessment and safety warnings.
 
