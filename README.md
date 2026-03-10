@@ -43,7 +43,11 @@
 
 ## 🎨 Companion Card
 
-Looking for a beautiful way to display your WeatherSense data? Check out the [**WeatherSense Card**](https://github.com/smkrv/ha-weathersense-card) - a custom Lovelace card with modern glassmorphism design!
+Looking for a beautiful way to display your WeatherSense data? Check out the [**WeatherSense Card**](https://github.com/smkrv/ha-weathersense-card) — a custom Lovelace card with modern glassmorphism design!
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/smkrv/ha-weathersense-card/main/screenshots/screenshot.webp" alt="WeatherSense Card" style="max-width: 500px;" width="500" />
+</p>
 
 **Features:**
 - 11 dynamic color themes based on comfort levels
