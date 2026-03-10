@@ -202,6 +202,100 @@ COMFORT_EXPLANATIONS_I18N = {
 }
 
 
+COMFORT_LEVEL_I18N = {
+    "en": {
+        COMFORT_EXTREME_COLD: "Extreme Cold",
+        COMFORT_VERY_COLD: "Very Cold",
+        COMFORT_COLD: "Cold",
+        COMFORT_COOL: "Cool",
+        COMFORT_SLIGHTLY_COOL: "Slightly Cool",
+        COMFORT_COMFORTABLE: "Comfortable",
+        COMFORT_SLIGHTLY_WARM: "Slightly Warm",
+        COMFORT_WARM: "Warm",
+        COMFORT_HOT: "Hot",
+        COMFORT_VERY_HOT: "Very Hot",
+        COMFORT_EXTREME_HOT: "Extreme Hot",
+    },
+    "ru": {
+        COMFORT_EXTREME_COLD: "Экстремальный холод",
+        COMFORT_VERY_COLD: "Очень холодно",
+        COMFORT_COLD: "Холодно",
+        COMFORT_COOL: "Прохладно",
+        COMFORT_SLIGHTLY_COOL: "Слегка прохладно",
+        COMFORT_COMFORTABLE: "Комфортно",
+        COMFORT_SLIGHTLY_WARM: "Слегка тепло",
+        COMFORT_WARM: "Тепло",
+        COMFORT_HOT: "Жарко",
+        COMFORT_VERY_HOT: "Очень жарко",
+        COMFORT_EXTREME_HOT: "Экстремальная жара",
+    },
+    "de": {
+        COMFORT_EXTREME_COLD: "Extrem kalt",
+        COMFORT_VERY_COLD: "Sehr kalt",
+        COMFORT_COLD: "Kalt",
+        COMFORT_COOL: "Kühl",
+        COMFORT_SLIGHTLY_COOL: "Leicht kühl",
+        COMFORT_COMFORTABLE: "Komfortabel",
+        COMFORT_SLIGHTLY_WARM: "Leicht warm",
+        COMFORT_WARM: "Warm",
+        COMFORT_HOT: "Heiß",
+        COMFORT_VERY_HOT: "Sehr heiß",
+        COMFORT_EXTREME_HOT: "Extrem heiß",
+    },
+    "es": {
+        COMFORT_EXTREME_COLD: "Frío extremo",
+        COMFORT_VERY_COLD: "Mucho frío",
+        COMFORT_COLD: "Frío",
+        COMFORT_COOL: "Fresco",
+        COMFORT_SLIGHTLY_COOL: "Ligeramente fresco",
+        COMFORT_COMFORTABLE: "Confortable",
+        COMFORT_SLIGHTLY_WARM: "Ligeramente cálido",
+        COMFORT_WARM: "Cálido",
+        COMFORT_HOT: "Caluroso",
+        COMFORT_VERY_HOT: "Muy caluroso",
+        COMFORT_EXTREME_HOT: "Calor extremo",
+    },
+    "hi": {
+        COMFORT_EXTREME_COLD: "अत्यधिक ठंड",
+        COMFORT_VERY_COLD: "बहुत ठंड",
+        COMFORT_COLD: "ठंड",
+        COMFORT_COOL: "शीतल",
+        COMFORT_SLIGHTLY_COOL: "थोड़ा ठंडा",
+        COMFORT_COMFORTABLE: "आरामदायक",
+        COMFORT_SLIGHTLY_WARM: "थोड़ा गर्म",
+        COMFORT_WARM: "गर्म",
+        COMFORT_HOT: "तपन",
+        COMFORT_VERY_HOT: "बहुत गर्म",
+        COMFORT_EXTREME_HOT: "अत्यधिक गर्मी",
+    },
+    "zh-CN": {
+        COMFORT_EXTREME_COLD: "极端寒冷",
+        COMFORT_VERY_COLD: "非常寒冷",
+        COMFORT_COLD: "寒冷",
+        COMFORT_COOL: "凉爽",
+        COMFORT_SLIGHTLY_COOL: "微凉",
+        COMFORT_COMFORTABLE: "舒适",
+        COMFORT_SLIGHTLY_WARM: "微暖",
+        COMFORT_WARM: "温暖",
+        COMFORT_HOT: "炎热",
+        COMFORT_VERY_HOT: "非常炎热",
+        COMFORT_EXTREME_HOT: "极端炎热",
+    },
+    "cs": {
+        COMFORT_EXTREME_COLD: "Extrémní zima",
+        COMFORT_VERY_COLD: "Velmi chladno",
+        COMFORT_COLD: "Chladno",
+        COMFORT_COOL: "Svěže",
+        COMFORT_SLIGHTLY_COOL: "Mírně chladné",
+        COMFORT_COMFORTABLE: "Příjemně",
+        COMFORT_SLIGHTLY_WARM: "Mírně teplo",
+        COMFORT_WARM: "Teplo",
+        COMFORT_HOT: "Horko",
+        COMFORT_VERY_HOT: "Velmi horko",
+        COMFORT_EXTREME_HOT: "Extrémní horko",
+    },
+}
+
 CALCULATION_METHOD_I18N = {
     "en": {
         "Heat Index": "Heat Index",
@@ -263,6 +357,13 @@ def _normalize_lang(language: str) -> str:
             if key.lower() == lang.lower():
                 return key
     return lang
+
+
+def get_comfort_level(comfort_level: str, language: str) -> str:
+    """Get localized comfort level name, falling back to English."""
+    lang = _normalize_lang(language)
+    levels = COMFORT_LEVEL_I18N.get(lang, COMFORT_LEVEL_I18N["en"])
+    return levels.get(comfort_level, comfort_level)
 
 
 def get_comfort_description(comfort_level: str, language: str) -> str:

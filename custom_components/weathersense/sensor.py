@@ -63,7 +63,7 @@ from .const import (
     COMFORT_SLIGHTLY_COOL,
     CONF_DISPLAY_UNIT,
 )
-from .comfort_translations import get_comfort_description, get_comfort_explanation, get_calculation_method
+from .comfort_translations import get_comfort_level, get_comfort_description, get_comfort_explanation, get_calculation_method
 from .weather_calculator import calculate_feels_like
 
 _LOGGER = logging.getLogger(__name__)
@@ -361,7 +361,7 @@ class WeatherSenseSensor(SensorEntity):
         )
 
         self._attr_extra_state_attributes = {
-            ATTR_COMFORT_LEVEL: self._comfort_level,
+            ATTR_COMFORT_LEVEL: get_comfort_level(self._comfort_level, self.hass.config.language),
             ATTR_COMFORT_DESCRIPTION: get_comfort_description(self._comfort_level, self.hass.config.language),
             ATTR_COMFORT_EXPLANATION: get_comfort_explanation(self._comfort_level, self.hass.config.language),
             ATTR_CALCULATION_METHOD: get_calculation_method(self._calculation_method, self.hass.config.language),

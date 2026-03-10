@@ -5,7 +5,9 @@ import pytest
 from weathersense.comfort_translations import (
     COMFORT_DESCRIPTIONS_I18N,
     COMFORT_EXPLANATIONS_I18N,
+    COMFORT_LEVEL_I18N,
     CALCULATION_METHOD_I18N,
+    get_comfort_level,
     get_comfort_description,
     get_comfort_explanation,
     get_calculation_method,
@@ -50,6 +52,17 @@ class TestComfortDescriptions:
             assert expls[level], f"Empty {level} in {lang} explanations"
 
 
+class TestComfortLevelTranslations:
+    """All languages must have all comfort levels in COMFORT_LEVEL_I18N."""
+
+    @pytest.mark.parametrize("lang", SUPPORTED_LANGUAGES)
+    def test_all_levels_present(self, lang):
+        levels = COMFORT_LEVEL_I18N[lang]
+        for level in ALL_COMFORT_LEVELS:
+            assert level in levels, f"Missing {level} in {lang} comfort levels"
+            assert levels[level], f"Empty {level} in {lang} comfort levels"
+
+
 class TestCalculationMethodTranslations:
     """All languages must have all methods translated."""
 
@@ -63,6 +76,26 @@ class TestCalculationMethodTranslations:
 
 class TestGetFunctions:
     """Test helper functions with fallback behavior."""
+
+    def test_comfort_level_english(self):
+        level = get_comfort_level(COMFORT_COMFORTABLE, "en")
+        assert level == "Comfortable"
+
+    def test_comfort_level_russian(self):
+        level = get_comfort_level(COMFORT_COMFORTABLE, "ru")
+        assert level == "Комфортно"
+
+    def test_comfort_level_czech(self):
+        level = get_comfort_level(COMFORT_COMFORTABLE, "cs")
+        assert level == "Příjemně"
+
+    def test_comfort_level_fallback(self):
+        level = get_comfort_level(COMFORT_COMFORTABLE, "unknown")
+        assert level == "Comfortable"
+
+    def test_comfort_level_unknown_code(self):
+        level = get_comfort_level("nonexistent", "en")
+        assert level == "nonexistent"
 
     def test_english_fallback(self):
         """Unknown language falls back to English."""
