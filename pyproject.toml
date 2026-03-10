@@ -1,6 +1,6 @@
 [project]
 name = "ha-weathersense"
-version = "1.2.0"
+version = "1.2.1"
 description = "Home Assistant integration for scientifically-accurate feels-like temperature"
 requires-python = ">=3.12"
 
