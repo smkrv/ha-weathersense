@@ -15,16 +15,13 @@
 </div>
 <div align="center">  
   
-  <img src="https://github.com/smkrv/ha-weathersense/blob/62564fad0c3f860222191aaeda29ce4c8cd5829b/custom_components/ha-weathersense/icons/icon%402x.png" alt="Logo: HA WeatherSense" style="width: 10%; max-width: 32px; max-height: 32px; aspect-ratio: 1/1; object-fit: contain;"/>
+  <img src="https://github.com/smkrv/ha-weathersense/blob/62564fad0c3f860222191aaeda29ce4c8cd5829b/custom_components/weathersense/icons/icon%402x.png" alt="Logo: HA WeatherSense" style="width: 10%; max-width: 32px; max-height: 32px; aspect-ratio: 1/1; object-fit: contain;"/>
 
   Plug-and-play “feels-like” readings and an instant **comfy/not-comfy** flag for Home Assistant.
 <br />
   No jargon, just data that **works**!
 
 </div>
-
-> [!IMPORTANT]
-> Please note: As these are the initial release versions, bugs and errors may occur.
 
 ## Features
 
@@ -87,6 +84,9 @@ Looking for a beautiful way to display your WeatherSense data? Check out the [**
    - Optionally select wind speed sensor
    - Optionally select pressure sensor
    - Optionally select solar radiation sensor
+   - Optionally select wind direction sensor
+   - Enable/disable wind direction correction (experimental)
+   - Enable/disable output smoothing (EMA filter) with configurable responsiveness
    - Specify if the sensor is for outdoor or indoor use
    - Optionally select your preferred temperature display unit
 
@@ -106,9 +106,13 @@ The integration provides the following attributes:
 | `humidity` | Source humidity value (%) |
 | `wind_speed` | Source wind speed value (in m/s) if available |
 | `pressure` | Source pressure value (in kPa) if available |
+| `wind_direction` | Source wind direction value (in °) if available |
+| `wind_direction_correction_applied` | Wind direction correction value (°C) if enabled |
 | `is_outdoor` | Whether this is an outdoor or indoor sensor |
 | `time_of_day` | Current time when calculation was performed |
 | `is_comfortable` | Boolean indicating if current conditions are comfortable |
+
+> **Note:** `comfort_description`, `comfort_explanation` and `calculation_method` are automatically localized based on your Home Assistant language setting.
 
 ## Dynamic Icons
 
@@ -117,15 +121,15 @@ The sensor's icon changes automatically based on the current comfort level:
 | Comfort Level | Icon |
 |---------------|------|
 | `extreme_cold` | mdi:snowflake-alert |
-| `very_cold` | mdi:snowflake |
-| `cold` | mdi:weather-snowy |
-| `cool` | mdi:thermometer-low |
+| `very_cold` | mdi:snowflake-thermometer |
+| `cold` | mdi:thermometer-low |
+| `cool` | mdi:thermometer-minus |
 | `slightly_cool` | mdi:thermometer-minus |
 | `comfortable` | mdi:hand-okay |
 | `slightly_warm` | mdi:thermometer-plus |
 | `warm` | mdi:thermometer-high |
-| `hot` | mdi:weather-sunny |
-| `very_hot` | mdi:weather-sunny-alert |
+| `hot` | mdi:thermometer-alert |
+| `very_hot` | mdi:heat-wave |
 | `extreme_hot` | mdi:fire-alert |
 
 ## How It Works
@@ -253,7 +257,6 @@ These models are used daily by meteorological services worldwide to provide accu
 
 Future improvements planned for this integration:
 
-- Support for additional languages
 - More advanced indoor comfort models (PMV/PPD)
 - Integration with weather forecasts for predictive comfort
 - Custom comfort thresholds configuration
