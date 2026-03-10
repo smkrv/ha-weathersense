@@ -18,11 +18,10 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import (
     ATTR_UNIT_OF_MEASUREMENT,
     UnitOfTemperature,
@@ -200,7 +199,6 @@ class WeatherSenseSensor(SensorEntity):
             )
         )
 
-    @callback
     async def _handle_state_changes(self, event):
         """Handle state changes in the tracked entities."""
         entity_id = event.data.get("entity_id")
@@ -258,7 +256,7 @@ class WeatherSenseSensor(SensorEntity):
                 except (ValueError, TypeError):
                     _LOGGER.debug("Invalid wind speed value")
 
-        pressure = None
+        self._pressure = None
         if self._pressure_entity_id:
             pressure_state = self.hass.states.get(self._pressure_entity_id)
             if pressure_state:
@@ -286,19 +284,31 @@ class WeatherSenseSensor(SensorEntity):
                     _LOGGER.debug("Invalid pressure value")
 
         # Get wind direction if configured
-        wind_direction = None
+        self._wind_direction = None
         if self._wind_direction_entity_id:
             wind_dir_state = self.hass.states.get(self._wind_direction_entity_id)
             if wind_dir_state:
                 try:
-                    wind_direction = float(wind_dir_state.state)
-                    self._wind_direction = wind_direction
+                    self._wind_direction = float(wind_dir_state.state)
                 except (ValueError, TypeError):
                     _LOGGER.debug("Invalid wind direction value")
 
+        # Get solar radiation if configured (estimate cloudiness from it)
+        cloudiness = 0
+        self._solar_radiation = None
+        if self._solar_radiation_entity_id:
+            solar_state = self.hass.states.get(self._solar_radiation_entity_id)
+            if solar_state:
+                try:
+                    self._solar_radiation = float(solar_state.state)
+                    # Estimate cloudiness from solar radiation
+                    # Clear sky ≈ 1000 W/m², full cloud ≈ 0 W/m²
+                    cloudiness = max(0, min(100, 100 * (1 - self._solar_radiation / 1000)))
+                except (ValueError, TypeError):
+                    _LOGGER.debug("Invalid solar radiation value")
+
         # Calculate feels-like temperature
         current_time = dt_util.now()
-        cloudiness = 0  # Default value, could be improved with weather integration
 
         # Get latitude from Home Assistant config for hemisphere detection
         latitude = self.hass.config.latitude
@@ -311,7 +321,7 @@ class WeatherSenseSensor(SensorEntity):
             self._is_outdoor,
             current_time,
             cloudiness,
-            wind_direction,
+            self._wind_direction,
             latitude,
             self._wind_direction_correction_enabled,
         )

@@ -175,6 +175,8 @@ Thumbs.db
 
 # Documents
 *.txt
+!requirements_test.txt
+CLAUDE.md
 *.pdf
 *.psd
 *.zip

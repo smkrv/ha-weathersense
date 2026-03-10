@@ -139,8 +139,8 @@ def apply_solar_correction(
         )
     
     # Nighttime cooling effect (minor)
-    elif 22 <= hour or hour <= 4:
-        # Very slight cooling at night
+    elif hour >= 19 or hour <= 4:
+        # Very slight cooling at night / evening
         solar_factor = -0.5
     
     return feels_like + solar_factor
@@ -316,11 +316,6 @@ def determine_outdoor_comfort(feels_like: float, method: str) -> str:
         COMFORT_SLIGHTLY_WARM, COMFORT_WARM, COMFORT_HOT,
         COMFORT_VERY_HOT, COMFORT_EXTREME_HOT
     )
-
-    # Sanity check - if feels_like is unreasonable, use more conservative estimate
-    if feels_like > 60:  # Unreasonably high temperature
-        _LOGGER.warning("Calculated feels-like temperature is unreasonably high: %s°C. Using more conservative estimate.", feels_like)
-        feels_like = min(feels_like, 50)  # Cap at 50°C which is still extremely hot
 
     if method == "Heat Index":
         if feels_like >= 54:
