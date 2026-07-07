@@ -38,7 +38,7 @@
 - Includes comfort status indicator (is_comfortable attribute)
 - Dynamic icons that change based on comfort level
 - Supports different temperature units (°C/°F)
-- Automatic unit conversion for any input sensors
+- Automatic unit conversion for input sensors: temperature (°C/°F), wind speed (m/s, km/h, mph, kn, ft/s, Beaufort), pressure (kPa, hPa, mbar, mmHg, inHg, Pa, bar, cbar, psi)
 - Easy setup through the UI
 
 ## 🎨 Companion Card
@@ -97,6 +97,8 @@ Check out the [**WeatherSense Card**](https://github.com/smkrv/ha-weathersense-c
    - Specify if the sensor is for outdoor or indoor use
    - Optionally select your preferred temperature display unit
 
+All of these settings can be changed later via the integration's Configure dialog; optional sensors can also be removed there. The display unit is applied as a per-entity unit override (the same mechanism as the entity's unit setting in the UI); when no display unit is selected, the state follows your Home Assistant unit system.
+
 You can add multiple instances of the integration for different locations (e.g., living room, bedroom, outside).
 
 ## Sensor Attributes
@@ -105,10 +107,12 @@ The integration provides the following attributes:
 
 | Attribute | Description |
 |-----------|-------------|
-| `comfort_level` | Current comfort level code |
+| `comfort_level` | Stable comfort level key (e.g. `slightly_cool`) — language-independent, safe for automations and the companion card |
+| `comfort_level_localized` | Comfort level name in your Home Assistant language |
 | `comfort_description` | Short description of the comfort level |
 | `comfort_explanation` | Detailed explanation of the comfort level |
-| `calculation_method` | Method used for calculation (Heat Index, Wind Chill, etc.) |
+| `calculation_method` | Method used for calculation, localized (Heat Index, Wind Chill, etc.) |
+| `calculation_method_key` | Stable method key: `heat_index`, `wind_chill`, `steadman` or `indoor` |
 | `temperature` | Source temperature value (in °C) |
 | `humidity` | Source humidity value (%) |
 | `wind_speed` | Source wind speed value (in m/s) if available |
@@ -119,7 +123,9 @@ The integration provides the following attributes:
 | `time_of_day` | Current time when calculation was performed |
 | `is_comfortable` | Boolean indicating if current conditions are comfortable |
 
-> **Note:** `comfort_description`, `comfort_explanation` and `calculation_method` are automatically localized based on your Home Assistant language setting.
+> **Note:** `comfort_level_localized`, `comfort_description`, `comfort_explanation` and `calculation_method` are automatically localized based on your Home Assistant language setting. `comfort_level` and `calculation_method_key` always stay in English so automations keep working regardless of language.
+>
+> The sensor becomes `unavailable` when its required inputs (temperature or humidity) are unavailable, instead of freezing on the last value.
 
 ## Dynamic Icons
 
