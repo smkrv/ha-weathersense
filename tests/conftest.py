@@ -43,7 +43,51 @@ dt_mod = _install("homeassistant.util.dt")
 sys.modules["homeassistant.helpers.config_validation"] = MagicMock()
 sys.modules["homeassistant.helpers.selector"] = MagicMock()
 sys.modules["homeassistant.helpers.update_coordinator"] = MagicMock()
-sys.modules["voluptuous"] = MagicMock()
+
+
+# --- voluptuous (real stub: schemas built in config_flow must be introspectable)
+
+
+class _VolMarker:
+    """vol.Marker stand-in: keeps schema/default/description readable and is
+    hashable by the wrapped key so it can be used as a dict key like the real
+    thing."""
+
+    def __init__(self, schema, msg=None, default=None, description=None):
+        self.schema = schema
+        self.msg = msg
+        self.default = default
+        self.description = description
+
+    def __hash__(self):
+        return hash(self.schema)
+
+    def __eq__(self, other):
+        return self.schema == getattr(other, "schema", other)
+
+    def __repr__(self):
+        return f"{type(self).__name__}({self.schema!r})"
+
+
+class _VolRequired(_VolMarker):
+    pass
+
+
+class _VolOptional(_VolMarker):
+    pass
+
+
+class _VolSchema:
+    def __init__(self, schema, extra=None):
+        self.schema = schema
+        self.extra = extra
+
+
+vol_mod = _install("voluptuous")
+vol_mod.Marker = _VolMarker
+vol_mod.Required = _VolRequired
+vol_mod.Optional = _VolOptional
+vol_mod.Schema = _VolSchema
 
 ha.components = components
 ha.config_entries = config_entries_mod
@@ -108,12 +152,35 @@ class ConfigEntry:
         self.options = options or {}
 
 
-class ConfigFlow:
+class _FlowHandler:
+    """Shared FlowHandler helpers: return FlowResult dicts like real HA and
+    record every call so tests can assert on flow outcomes."""
+
+    def async_create_entry(self, *, title=None, data=None, **kwargs):
+        result = {"type": "create_entry", "title": title, "data": data, **kwargs}
+        self.__dict__.setdefault("created_entries", []).append(result)
+        return result
+
+    def async_show_form(self, *, step_id=None, data_schema=None, errors=None, **kwargs):
+        result = {
+            "type": "form",
+            "step_id": step_id,
+            "data_schema": data_schema,
+            "errors": errors,
+            **kwargs,
+        }
+        self.__dict__.setdefault("shown_forms", []).append(result)
+        return result
+
+
+class ConfigFlow(_FlowHandler):
     def __init_subclass__(cls, **kwargs):
         pass
 
 
-class OptionsFlow:
+class OptionsFlow(_FlowHandler):
+    # Deliberately NO config_entry attribute: it only exists on the real base
+    # class since HA 2024.12, and the integration must run on 2024.11.
     pass
 
 
@@ -195,6 +262,7 @@ class FakeEntityRegistry:
 
     def __init__(self):
         self.updated_options = []
+        self.entries = []
 
     def async_get(self, entity_id):
         return None
@@ -207,8 +275,17 @@ def _registry_async_get(hass):
     return FakeEntityRegistry()
 
 
+def async_entries_for_config_entry(registry, config_entry_id):
+    return [
+        entry
+        for entry in getattr(registry, "entries", [])
+        if getattr(entry, "config_entry_id", None) == config_entry_id
+    ]
+
+
 entity_registry_mod.FakeEntityRegistry = FakeEntityRegistry
 entity_registry_mod.async_get = _registry_async_get
+entity_registry_mod.async_entries_for_config_entry = async_entries_for_config_entry
 
 
 def async_track_state_change_event(hass, entity_ids, action):
