@@ -127,9 +127,37 @@ class TestGetFunctions:
         assert method == "Unknown Method"
 
     def test_language_normalization(self):
-        """zh_CN should match zh-CN."""
+        """zh_CN must resolve to the zh-CN table, not the English fallback."""
         desc = get_comfort_description(COMFORT_COMFORTABLE, "zh_CN")
-        assert desc  # Should not be empty (found zh-CN)
+        assert desc == COMFORT_DESCRIPTIONS_I18N["zh-CN"][COMFORT_COMFORTABLE]
+        assert desc != COMFORT_DESCRIPTIONS_I18N["en"][COMFORT_COMFORTABLE]
+
+    # Home Assistant reports Chinese as zh-Hans/zh-Hant (BCP-47 script
+    # subtags); _LANG_ALIASES must map them to the shipped zh-CN table
+    # instead of silently falling back to English.
+    @pytest.mark.parametrize(
+        "language",
+        ["zh-Hans", "zh_Hans", "ZH-HANS", "zh-Hant", "zh"],
+    )
+    def test_chinese_variants_resolve_to_zh_cn(self, language):
+        desc = get_comfort_description(COMFORT_COMFORTABLE, language)
+        assert desc == COMFORT_DESCRIPTIONS_I18N["zh-CN"][COMFORT_COMFORTABLE]
+
+        level = get_comfort_level(COMFORT_COMFORTABLE, language)
+        assert level == COMFORT_LEVEL_I18N["zh-CN"][COMFORT_COMFORTABLE]
+
+        method = get_calculation_method("Heat Index", language)
+        assert method == CALCULATION_METHOD_I18N["zh-CN"]["Heat Index"]
+
+    def test_regional_variant_resolves_to_base_language(self):
+        """en-US has no exact table; the base language 'en' must match."""
+        desc = get_comfort_description(COMFORT_COMFORTABLE, "en-US")
+        assert desc == COMFORT_DESCRIPTIONS_I18N["en"][COMFORT_COMFORTABLE]
+
+    def test_case_insensitive_match(self):
+        """'RU' must resolve to the ru table, not the English fallback."""
+        desc = get_comfort_description(COMFORT_COMFORTABLE, "RU")
+        assert desc == COMFORT_DESCRIPTIONS_I18N["ru"][COMFORT_COMFORTABLE]
 
     @pytest.mark.parametrize("lang", SUPPORTED_LANGUAGES)
     def test_descriptions_differ_from_english(self, lang):

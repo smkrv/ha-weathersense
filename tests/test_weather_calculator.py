@@ -47,15 +47,32 @@ class TestCalculateHeatIndex:
         hi = calculate_heat_index(50, 100)
         assert hi <= 50 + 25
 
-    def test_low_humidity_high_temp_adjustment(self):
-        """10% humidity, ~38°C (100°F): should apply the low-humidity adjustment."""
+    def test_low_humidity_takes_simple_branch(self):
+        """10% humidity, 38°C (100.4°F): rh < 40 → simple formula, not Rothfusz.
+
+        The Rothfusz low-humidity adjustment (rh < 13) is unreachable: the
+        full-formula branch requires rh >= 40. Hand-computed simple branch:
+        hi_f = 0.5*(100.4 + 61 + 32.4*1.2 + 0.94) = 100.61, averaged with
+        t_f → 100.505°F → 38.058°C.
+        """
         hi = calculate_heat_index(38, 10)
-        assert isinstance(hi, float)
+        assert hi == pytest.approx(38.058, abs=0.01)
 
     def test_high_humidity_moderate_temp_adjustment(self):
         """90% humidity, ~30°C (86°F): should apply high-humidity adjustment."""
         hi = calculate_heat_index(30, 90)
         assert hi > 30  # High humidity makes it feel hotter
+
+    def test_high_humidity_adjustment_exact_value(self):
+        """27.5°C (81.5°F) / 90% hits the rh>85, 80≤t_f≤87 adjustment branch.
+
+        Hand-computed: Rothfusz gives 89.9635°F, adjustment
+        ((90-85)/10)*((87-81.5)/5) = +0.55°F → 90.5135°F → 32.5075°C.
+        Without the adjustment the result would be 32.202°C, so the
+        tolerance below distinguishes the two.
+        """
+        hi = calculate_heat_index(27.5, 90)
+        assert hi == pytest.approx(32.5075, abs=0.01)
 
     def test_known_reference_value(self):
         """NWS reference: 33°C (91.4°F) + 60% RH → HI ≈ 38°C (100°F)."""
@@ -174,11 +191,11 @@ class TestApplySolarCorrection:
             corrected = apply_solar_correction(25.0, evening, cloudiness=0)
             assert corrected < 25.0, f"Hour {hour} should apply nighttime cooling"
 
-    def test_hour_5_gap(self):
-        """Hour 5 is between nighttime (≤4) and daytime (≥6) → no correction."""
+    def test_hour_5_predawn_cooling(self):
+        """Hour 5 is pre-dawn → nighttime cooling applies (night range is 19-23 and 0-5)."""
         predawn = datetime(2024, 6, 21, 5, 0)
         corrected = apply_solar_correction(25.0, predawn, cloudiness=0)
-        assert corrected == 25.0
+        assert corrected == 24.5
 
     def test_max_solar_correction_hot_day(self):
         """Hot day max correction should be ≤ 2.5°C."""
@@ -398,6 +415,31 @@ class TestCalculateFeelsLike:
         assert method == "Steadman Apparent Temperature"
 
 
+class TestMethodSelectionBoundaries:
+    """Exact edges of the method-selection conditions.
+
+    Heat Index requires temperature >= 27 AND humidity >= 40;
+    Wind Chill requires temperature <= 10 AND wind_speed > 1.34 (strict).
+    """
+
+    @pytest.mark.parametrize(
+        "temperature, humidity, wind_speed, expected_method",
+        [
+            (27.0, 40.0, 1, "Heat Index"),
+            (27.0, 39.9, 1, "Steadman Apparent Temperature"),
+            (26.9, 40.0, 1, "Steadman Apparent Temperature"),
+            (10.0, 50.0, 1.35, "Wind Chill"),
+            (10.0, 50.0, 1.34, "Steadman Apparent Temperature"),
+            (10.1, 50.0, 5, "Steadman Apparent Temperature"),
+        ],
+    )
+    def test_selection_edges(self, temperature, humidity, wind_speed, expected_method):
+        _, method, _, _ = calculate_feels_like(
+            temperature, humidity, wind_speed=wind_speed
+        )
+        assert method == expected_method
+
+
 # ---------------------------------------------------------------------------
 # calculate_indoor_feels_like
 # ---------------------------------------------------------------------------
@@ -494,6 +536,71 @@ class TestDetermineOutdoorComfort:
         assert determine_outdoor_comfort(65, "Heat Index") == "extreme_hot"
         assert determine_outdoor_comfort(50, "Steadman Apparent Temperature") == "extreme_hot"
 
+    # Heat Index branch uses >= thresholds: 54, 41, 32, 27
+    @pytest.mark.parametrize(
+        "feels_like, expected",
+        [
+            (54.0, "extreme_hot"),
+            (53.9, "very_hot"),
+            (41.0, "very_hot"),
+            (40.9, "hot"),
+            (32.0, "hot"),
+            (31.9, "warm"),
+            (27.0, "warm"),
+            (26.9, "comfortable"),
+        ],
+    )
+    def test_heat_index_exact_thresholds(self, feels_like, expected):
+        assert determine_outdoor_comfort(feels_like, "Heat Index") == expected
+
+    # Wind Chill branch uses <= thresholds: -48, -40, -27, -13, 0
+    @pytest.mark.parametrize(
+        "feels_like, expected",
+        [
+            (-48.0, "extreme_cold"),
+            (-47.9, "very_cold"),
+            (-40.0, "very_cold"),
+            (-39.9, "cold"),
+            (-27.0, "cold"),
+            (-26.9, "cool"),
+            (-13.0, "cool"),
+            (-12.9, "slightly_cool"),
+            (0.0, "slightly_cool"),
+            (0.1, "comfortable"),
+        ],
+    )
+    def test_wind_chill_exact_thresholds(self, feels_like, expected):
+        assert determine_outdoor_comfort(feels_like, "Wind Chill") == expected
+
+    # Steadman branch uses strict > thresholds: 46, 38, 32, 29, 26, 9, 0, -13, -27, -40
+    @pytest.mark.parametrize(
+        "feels_like, expected",
+        [
+            (46.1, "extreme_hot"),
+            (46.0, "very_hot"),
+            (38.1, "very_hot"),
+            (38.0, "hot"),
+            (32.1, "hot"),
+            (32.0, "warm"),
+            (29.1, "warm"),
+            (29.0, "slightly_warm"),
+            (26.1, "slightly_warm"),
+            (26.0, "comfortable"),
+            (9.1, "comfortable"),
+            (9.0, "slightly_cool"),
+            (0.1, "slightly_cool"),
+            (0.0, "cool"),
+            (-12.9, "cool"),
+            (-13.0, "cold"),
+            (-26.9, "cold"),
+            (-27.0, "very_cold"),
+            (-39.9, "very_cold"),
+            (-40.0, "extreme_cold"),
+        ],
+    )
+    def test_steadman_exact_thresholds(self, feels_like, expected):
+        assert determine_outdoor_comfort(feels_like, "Steadman Apparent Temperature") == expected
+
 
 # ---------------------------------------------------------------------------
 # determine_indoor_comfort
@@ -586,3 +693,15 @@ class TestEdgeCases:
             20, 50, wind_direction=720, enable_wind_direction_correction=True,
         )
         assert isinstance(fl, float)
+
+    def test_sanity_warning_when_far_from_actual(self, caplog):
+        """50°C/100% at noon: HI capped to temp+25, solar pushes past the
+        +25 sanity bound → the warning must fire, value still returned."""
+        import logging
+
+        noon = datetime(2024, 6, 21, 13, 0)
+        with caplog.at_level(logging.WARNING):
+            fl, method, _, _ = calculate_feels_like(50, 100, time_of_day=noon)
+        assert method == "Heat Index"
+        assert fl > 75
+        assert "is far from actual temperature" in caplog.text
