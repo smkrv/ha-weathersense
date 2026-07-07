@@ -18,6 +18,13 @@ on:
     - cron: "0 0 * * *"  # Run daily at midnight UTC
   workflow_dispatch:  # Allow manual trigger
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     name: Validate with hassfest
@@ -26,18 +33,7 @@ jobs:
 
     steps:
       - name: ⤵️ Check out code from GitHub
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: 🚀 Run hassfest validation
-        uses: home-assistant/actions/hassfest@master
-
-      - name: ℹ️ Print hassfest version
-        if: always()
-        run: |
-          echo "Hassfest version: $(hassfest --version)"
-
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
+        uses: home-assistant/actions/hassfest@f4ca6f671bd429efb108c0f2fa0ae8af0215986c # master 2026-07

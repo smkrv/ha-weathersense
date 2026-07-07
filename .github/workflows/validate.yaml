@@ -2,16 +2,36 @@ name: Validate
 
 on:
   push:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'custom_components/**'
+      - 'hacs.json'
+      - '.github/workflows/validate.yaml'
   pull_request:
+    branches:
+      - main
+    paths:
+      - 'custom_components/**'
+      - 'hacs.json'
+      - '.github/workflows/validate.yaml'
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate-hacs:
     runs-on: "ubuntu-latest"
     steps:
       - name: HACS validation
-        uses: "hacs/action@main"
+        uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
         with:
           category: "integration"
