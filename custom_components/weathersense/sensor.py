@@ -360,8 +360,11 @@ class WeatherSenseSensor(SensorEntity):
             if solar_state:
                 try:
                     self._solar_radiation = float(solar_state.state)
-                    # Estimate cloudiness from solar radiation
-                    # Clear sky ≈ 1000 W/m², full cloud ≈ 0 W/m²
+                    # Estimate cloudiness from solar radiation.
+                    # Clear sky ≈ 1000 W/m², full cloud ≈ 0 W/m². A reading of
+                    # 0 (e.g. at night) is indistinguishable from full
+                    # overcast; harmless, since the nighttime branch of the
+                    # solar correction ignores cloudiness anyway.
                     cloudiness = max(0, min(100, 100 * (1 - self._solar_radiation / 1000)))
                 except (ValueError, TypeError):
                     _LOGGER.debug("Invalid solar radiation value")
