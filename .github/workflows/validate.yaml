@@ -35,3 +35,7 @@ jobs:
         uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
         with:
           category: "integration"
+          # PolyForm Noncommercial 1.0.0 is not in GitHub's license detector
+          # (SPDX comes back NOASSERTION), so the HACS license check cannot
+          # pass without changing the license.
+          ignore: "license"
