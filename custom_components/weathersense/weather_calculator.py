@@ -180,8 +180,9 @@ def apply_solar_correction(
             hour, solar_intensity, max_solar_correction, cloud_factor, solar_factor
         )
     
-    # Nighttime cooling effect (minor)
-    elif hour >= 19 or hour <= 4:
+    # Nighttime cooling effect (minor); contiguous with the 6-18 daytime
+    # branch so no hour is left without a correction
+    elif hour >= 19 or hour <= 5:
         # Very slight cooling at night / evening
         solar_factor = -0.5
     
