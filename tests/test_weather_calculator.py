@@ -33,11 +33,20 @@ class TestCalculateHeatIndex:
         hi = calculate_heat_index(35, 80)
         assert hi > 35, "Heat index should exceed actual temp at high humidity"
 
-    def test_moderate_conditions_simple_formula(self):
-        """27°C / 30% → rh < 40 triggers simple formula branch."""
+    def test_moderate_conditions(self):
+        """27°C / 30%: simple average reaches 80°F, so the full regression runs."""
         hi = calculate_heat_index(27, 30)
         # Result should be close to actual temperature
         assert 20 < hi < 40
+
+    def test_below_80f_keeps_simple_formula(self):
+        """26°C / 30% (78.8°F): simple average is 78.3°F < 80 → simple result stands.
+
+        Hand-computed: 0.5*(78.8 + 61 + 10.8*1.2 + 2.82) = 77.795,
+        averaged with t_f → 78.2975°F → 25.7194°C.
+        """
+        hi = calculate_heat_index(26, 30)
+        assert hi == pytest.approx(25.7194, abs=0.001)
 
     def test_returns_float(self):
         assert isinstance(calculate_heat_index(30, 50), float)
@@ -47,16 +56,18 @@ class TestCalculateHeatIndex:
         hi = calculate_heat_index(50, 100)
         assert hi <= 50 + 25
 
-    def test_low_humidity_takes_simple_branch(self):
-        """10% humidity, 38°C (100.4°F): rh < 40 → simple formula, not Rothfusz.
+    def test_low_humidity_adjustment_applied(self):
+        """10% humidity, 38°C (100.4°F): full regression minus the low-RH adjustment.
 
-        The Rothfusz low-humidity adjustment (rh < 13) is unreachable: the
-        full-formula branch requires rh >= 40. Hand-computed simple branch:
-        hi_f = 0.5*(100.4 + 61 + 32.4*1.2 + 0.94) = 100.61, averaged with
-        t_f → 100.505°F → 38.058°C.
+        The simple average is 100.5°F >= 80, so the Rothfusz regression runs
+        and the rh < 13 adjustment subtracts ((13-10)/4)*sqrt((17-5.4)/17).
+        Result 94.51°F → 34.727°C - below air temperature, matching the NWS
+        table for very dry heat. Before the NWS-exact gate this returned
+        38.06°C (air temp) and the adjustment was dead code.
         """
         hi = calculate_heat_index(38, 10)
-        assert hi == pytest.approx(38.058, abs=0.01)
+        assert hi == pytest.approx(34.727, abs=0.01)
+        assert hi < 38  # dry heat feels cooler than air temperature
 
     def test_high_humidity_moderate_temp_adjustment(self):
         """90% humidity, ~30°C (86°F): should apply high-humidity adjustment."""
