@@ -186,6 +186,7 @@ _temp*/
 # Claude Code
 .claude/
 CLAUDE.md
+handoff.*.md
 
 # Card development (separate repository)
 weathersense-card/
