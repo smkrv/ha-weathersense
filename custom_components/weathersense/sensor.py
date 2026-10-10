@@ -376,6 +376,12 @@ class WeatherSenseSensor(SensorEntity):
                     if wind_unit != UnitOfSpeed.METERS_PER_SECOND:
                         _LOGGER.debug("Converted wind speed from %s %s to %s m/s",
                                      float(wind_state.state), wind_unit, wind_speed)
+                    # Physically impossible readings are bad data: they pass
+                    # isfinite but produce inf/nan inside wind chill (v*3.6
+                    # overflows; inf - inf = nan). ~150 m/s exceeds every
+                    # measured surface wind (~113 m/s record gust).
+                    if wind_speed > 150:
+                        raise ValueError("implausible wind speed")
                     self._wind_speed = wind_speed
                 # OverflowError: a huge finite Beaufort overflows the ** 1.5
                 # conversion (raising, not returning inf like * does).

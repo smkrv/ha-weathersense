@@ -45,6 +45,9 @@
           "display_unit": "Jednotka zobrazení teploty"
         }
       }
+    },
+    "error": {
+      "same_sensor": "Snímače teploty a vlhkosti musí být různé"
     }
   }
 }
