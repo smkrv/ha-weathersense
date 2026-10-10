@@ -23,7 +23,8 @@
     },
     "error": {
       "temperature_required": "Senzor teploty je povinný",
-      "humidity_required": "Senzor vlhkosti je povinný"
+      "humidity_required": "Senzor vlhkosti je povinný",
+      "same_sensor": "Snímače teploty a vlhkosti musí být různé"
     }
   },
   "options": {

@@ -23,7 +23,8 @@
     },
     "error": {
       "temperature_required": "Temperatursensor ist erforderlich",
-      "humidity_required": "Feuchtigkeitssensor ist erforderlich"
+      "humidity_required": "Feuchtigkeitssensor ist erforderlich",
+      "same_sensor": "Temperatur- und Feuchtigkeitssensor müssen unterschiedlich sein"
     }
   },
   "options": {

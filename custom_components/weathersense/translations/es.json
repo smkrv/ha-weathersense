@@ -23,7 +23,8 @@
     },
     "error": {
       "temperature_required": "El sensor de temperatura es obligatorio",
-      "humidity_required": "El sensor de humedad es obligatorio"
+      "humidity_required": "El sensor de humedad es obligatorio",
+      "same_sensor": "Los sensores de temperatura y humedad deben ser diferentes"
     }
   },
   "options": {
