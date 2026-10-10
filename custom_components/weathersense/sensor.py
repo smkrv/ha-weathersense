@@ -377,7 +377,9 @@ class WeatherSenseSensor(SensorEntity):
                         _LOGGER.debug("Converted wind speed from %s %s to %s m/s",
                                      float(wind_state.state), wind_unit, wind_speed)
                     self._wind_speed = wind_speed
-                except (ValueError, TypeError):
+                # OverflowError: a huge finite Beaufort overflows the ** 1.5
+                # conversion (raising, not returning inf like * does).
+                except (ValueError, TypeError, OverflowError):
                     wind_speed = 0
                     _LOGGER.debug(
                         "%s: invalid wind speed value %r from %s",
@@ -418,9 +420,12 @@ class WeatherSenseSensor(SensorEntity):
                     if pressure_unit != UnitOfPressure.KPA:
                         _LOGGER.debug("Converted pressure from %s %s to %s kPa",
                                      float(pressure_state.state), pressure_unit, pressure_value)
-
+                    # Multiplication returns inf silently: a huge bar/psi
+                    # reading passes the input check but overflows here.
+                    if not math.isfinite(pressure_value):
+                        raise ValueError("pressure out of range")
                     self._pressure = pressure_value
-                except (ValueError, TypeError):
+                except (ValueError, TypeError, OverflowError):
                     _LOGGER.debug(
                         "%s: invalid pressure value %r from %s",
                         label, pressure_state.state, self._pressure_entity_id,

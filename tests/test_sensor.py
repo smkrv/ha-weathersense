@@ -805,6 +805,29 @@ class TestInputValidation:
         assert "wind_speed" not in sensor._attr_extra_state_attributes
         assert math.isfinite(sensor._attr_native_value)
 
+    def test_huge_beaufort_does_not_abort_update(self):
+        """Regression (Devin Review): a huge finite Beaufort value overflows
+        the ** 1.5 conversion with OverflowError, which escaped the handler
+        and aborted the whole update."""
+        hass = make_hass()
+        hass.states.set(WIND, "1e300", "Beaufort")
+        sensor = make_sensor(hass, wind_speed_entity_id=WIND)
+        update(sensor)
+        assert "wind_speed" not in sensor._attr_extra_state_attributes
+        assert sensor._attr_available is True
+        assert math.isfinite(sensor._attr_native_value)
+
+    def test_huge_bar_pressure_not_published_as_infinity(self):
+        """Regression (Devin Review): bar * 100 returns inf silently, and the
+        attribute used to publish the infinite value."""
+        hass = make_hass()
+        hass.states.set(PRESSURE, "1e307", "bar")
+        sensor = make_sensor(hass, pressure_entity_id=PRESSURE)
+        update(sensor)
+        assert "pressure" not in sensor._attr_extra_state_attributes
+        assert sensor._pressure is None
+        assert math.isfinite(sensor._attr_native_value)
+
     def test_nan_wind_direction_ignored(self):
         hass = make_hass()
         hass.states.set(WIND_DIR, "nan")
