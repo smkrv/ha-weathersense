@@ -9,6 +9,7 @@ Sensor platform for HA WeatherSense integration.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Optional
 
 from homeassistant.components.sensor import (
@@ -44,6 +45,8 @@ from .const import (
     CONF_WIND_DIRECTION_CORRECTION,
     CONF_SMOOTHING_ENABLED,
     CONF_SMOOTHING_FACTOR,
+    DEFAULT_NAME,
+    DEFAULT_IS_OUTDOOR,
     DEFAULT_SMOOTHING_FACTOR,
     ATTR_COMFORT_LEVEL,
     ATTR_COMFORT_LEVEL_LOCALIZED,
@@ -78,7 +81,7 @@ async def async_setup_entry(
     """Set up the WeatherSense sensor from config entry."""
     config = {**entry.data, **entry.options}
 
-    name = config.get("name", "Feels Like Temperature")
+    name = config.get("name", DEFAULT_NAME)
 
     sensor = WeatherSenseSensor(
         hass,
@@ -89,7 +92,7 @@ async def async_setup_entry(
         config.get(CONF_WIND_SPEED_SENSOR),
         config.get(CONF_PRESSURE_SENSOR),
         config.get(CONF_SOLAR_RADIATION_SENSOR),
-        config.get(CONF_IS_OUTDOOR, True),
+        config.get(CONF_IS_OUTDOOR, DEFAULT_IS_OUTDOOR),
         config.get(CONF_DISPLAY_UNIT),
         config.get(CONF_WIND_DIRECTION_SENSOR),
         config.get(CONF_WIND_DIRECTION_CORRECTION, False),
@@ -176,11 +179,12 @@ class WeatherSenseSensor(SensorEntity):
 
     async def async_added_to_hass(self) -> None:
         """Set up listeners when the entity is added to Home Assistant."""
-        # Set up listeners for all relevant entities
-        entities_to_track = [
+        # Set up listeners for all relevant entities (deduplicated: the same
+        # entity may be configured for more than one role)
+        entities_to_track = list(dict.fromkeys([
             self._temperature_entity_id,
             self._humidity_entity_id,
-        ]
+        ]))
 
         if self._wind_speed_entity_id:
             entities_to_track.append(self._wind_speed_entity_id)
@@ -242,32 +246,99 @@ class WeatherSenseSensor(SensorEntity):
             self._attr_available = False
             self.async_write_ha_state()
 
+    def _log_label(self) -> str:
+        """Label that identifies this sensor in log lines (issue #11)."""
+        return self.entity_id or self._attr_name
+
     async def _update_state(self) -> None:
         """Update the state of the sensor."""
+        label = self._log_label()
+
         # Get current values from entities
         temp_state = self.hass.states.get(self._temperature_entity_id)
         humidity_state = self.hass.states.get(self._humidity_entity_id)
 
-        if not temp_state or not humidity_state:
-            _LOGGER.warning("Required sensor states not available")
+        # Name exactly which required input has no state at all, so a log line
+        # is enough to find the culprit without cross-referencing history.
+        missing = [
+            f"{kind} source {eid} has no state"
+            for kind, state, eid in (
+                ("temperature", temp_state, self._temperature_entity_id),
+                ("humidity", humidity_state, self._humidity_entity_id),
+            )
+            if not state
+        ]
+        if missing:
+            _LOGGER.warning("%s: %s", label, "; ".join(missing))
+            self._set_unavailable()
+            return
+
+        # An unavailable/unknown flicker must also say which input blinked;
+        # a generic warning leaves users guessing across many sensors (#11).
+        offline = [
+            f"{kind} source {eid} is {state.state}"
+            for kind, state, eid in (
+                ("temperature", temp_state, self._temperature_entity_id),
+                ("humidity", humidity_state, self._humidity_entity_id),
+            )
+            if state.state in ("unavailable", "unknown")
+        ]
+        if offline:
+            _LOGGER.warning("%s: %s", label, "; ".join(offline))
             self._set_unavailable()
             return
 
         try:
-            # Get temperature and convert to Celsius if needed
-            self._temperature = float(temp_state.state)
-            temp_unit = temp_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
-            if temp_unit == UnitOfTemperature.FAHRENHEIT:
-                self._temperature = (self._temperature - 32) * 5/9
-                _LOGGER.debug("Converted temperature from %s°F to %s°C",
-                             float(temp_state.state), self._temperature)
-
-            # Get humidity
-            self._humidity = float(humidity_state.state)
+            raw_temperature = float(temp_state.state)
+            raw_humidity = float(humidity_state.state)
+            if not math.isfinite(raw_temperature) or not math.isfinite(raw_humidity):
+                raise ValueError("non-finite value")
         except (ValueError, TypeError):
-            _LOGGER.warning("Invalid temperature or humidity values")
+            _LOGGER.warning(
+                "%s: invalid temperature or humidity values "
+                "(temperature source %s = %r, humidity source %s = %r)",
+                label,
+                self._temperature_entity_id, temp_state.state,
+                self._humidity_entity_id, humidity_state.state,
+            )
             self._set_unavailable()
             return
+
+        # Convert temperature to Celsius if needed
+        self._temperature = raw_temperature
+        temp_unit = temp_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+        if temp_unit == UnitOfTemperature.FAHRENHEIT:
+            self._temperature = (self._temperature - 32) * 5/9
+            _LOGGER.debug("Converted temperature from %s°F to %s°C",
+                         raw_temperature, self._temperature)
+        elif temp_unit == UnitOfTemperature.KELVIN:
+            self._temperature = self._temperature - 273.15
+            _LOGGER.debug("Converted temperature from %sK to %s°C",
+                         raw_temperature, self._temperature)
+        elif temp_unit not in (None, UnitOfTemperature.CELSIUS):
+            _LOGGER.warning(
+                "%s: unsupported temperature unit %s on %s; assuming °C",
+                label, temp_unit, self._temperature_entity_id,
+            )
+
+        # Physically implausible readings mark the sensor unavailable instead
+        # of feeding garbage into the calculators (and crashing on extremes).
+        if not -80 <= self._temperature <= 80:
+            _LOGGER.warning(
+                "%s: implausible temperature %.1f°C from %s",
+                label, self._temperature, self._temperature_entity_id,
+            )
+            self._set_unavailable()
+            return
+
+        # Humidity outside 0-100% is bad source data; clamp rather than drop,
+        # but warn so the user can fix the upstream sensor.
+        if raw_humidity < 0 or raw_humidity > 100:
+            _LOGGER.warning(
+                "%s: humidity %.1f%% from %s outside 0-100, clamped",
+                label, raw_humidity, self._humidity_entity_id,
+            )
+        self._humidity = min(100.0, max(0.0, raw_humidity))
 
         # Get optional sensor values
         wind_speed = 0
@@ -277,6 +348,11 @@ class WeatherSenseSensor(SensorEntity):
             if wind_state:
                 try:
                     wind_speed = float(wind_state.state)
+                    if not math.isfinite(wind_speed):
+                        raise ValueError("non-finite wind speed")
+                    # Negative readings are sensor noise: clamp to calm
+                    # (same treatment as the negative-Beaufort case below).
+                    wind_speed = max(0.0, wind_speed)
                     # Convert to m/s if needed
                     wind_unit = wind_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
                     if wind_unit == UnitOfSpeed.KILOMETERS_PER_HOUR:
@@ -294,8 +370,8 @@ class WeatherSenseSensor(SensorEntity):
                         wind_speed = 0.836 * max(0.0, wind_speed) ** 1.5
                     elif wind_unit not in (None, UnitOfSpeed.METERS_PER_SECOND):
                         _LOGGER.warning(
-                            "Unsupported wind speed unit %s on %s; assuming m/s",
-                            wind_unit, self._wind_speed_entity_id,
+                            "%s: unsupported wind speed unit %s on %s; assuming m/s",
+                            label, wind_unit, self._wind_speed_entity_id,
                         )
                     if wind_unit != UnitOfSpeed.METERS_PER_SECOND:
                         _LOGGER.debug("Converted wind speed from %s %s to %s m/s",
@@ -303,7 +379,10 @@ class WeatherSenseSensor(SensorEntity):
                     self._wind_speed = wind_speed
                 except (ValueError, TypeError):
                     wind_speed = 0
-                    _LOGGER.debug("Invalid wind speed value")
+                    _LOGGER.debug(
+                        "%s: invalid wind speed value %r from %s",
+                        label, wind_state.state, self._wind_speed_entity_id,
+                    )
 
         self._pressure = None
         if self._pressure_entity_id:
@@ -311,6 +390,8 @@ class WeatherSenseSensor(SensorEntity):
             if pressure_state:
                 try:
                     pressure_value = float(pressure_state.state)
+                    if not math.isfinite(pressure_value) or pressure_value <= 0:
+                        raise ValueError("invalid pressure")
 
                     # Convert to kPa if needed
                     pressure_unit = pressure_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
@@ -331,8 +412,8 @@ class WeatherSenseSensor(SensorEntity):
                         pressure_value = pressure_value * 6.89476
                     elif pressure_unit not in (None, UnitOfPressure.KPA):
                         _LOGGER.warning(
-                            "Unsupported pressure unit %s on %s; assuming kPa",
-                            pressure_unit, self._pressure_entity_id,
+                            "%s: unsupported pressure unit %s on %s; assuming kPa",
+                            label, pressure_unit, self._pressure_entity_id,
                         )
                     if pressure_unit != UnitOfPressure.KPA:
                         _LOGGER.debug("Converted pressure from %s %s to %s kPa",
@@ -340,7 +421,10 @@ class WeatherSenseSensor(SensorEntity):
 
                     self._pressure = pressure_value
                 except (ValueError, TypeError):
-                    _LOGGER.debug("Invalid pressure value")
+                    _LOGGER.debug(
+                        "%s: invalid pressure value %r from %s",
+                        label, pressure_state.state, self._pressure_entity_id,
+                    )
 
         # Get wind direction if configured
         self._wind_direction = None
@@ -348,9 +432,15 @@ class WeatherSenseSensor(SensorEntity):
             wind_dir_state = self.hass.states.get(self._wind_direction_entity_id)
             if wind_dir_state:
                 try:
-                    self._wind_direction = float(wind_dir_state.state)
+                    wind_direction = float(wind_dir_state.state)
+                    if not math.isfinite(wind_direction):
+                        raise ValueError("non-finite wind direction")
+                    self._wind_direction = wind_direction
                 except (ValueError, TypeError):
-                    _LOGGER.debug("Invalid wind direction value")
+                    _LOGGER.debug(
+                        "%s: invalid wind direction value %r from %s",
+                        label, wind_dir_state.state, self._wind_direction_entity_id,
+                    )
 
         # Get solar radiation if configured (estimate cloudiness from it)
         cloudiness = 0
@@ -359,7 +449,10 @@ class WeatherSenseSensor(SensorEntity):
             solar_state = self.hass.states.get(self._solar_radiation_entity_id)
             if solar_state:
                 try:
-                    self._solar_radiation = float(solar_state.state)
+                    solar = float(solar_state.state)
+                    if not math.isfinite(solar):
+                        raise ValueError("non-finite solar radiation")
+                    self._solar_radiation = solar
                     # Estimate cloudiness from solar radiation.
                     # Clear sky ≈ 1000 W/m², full cloud ≈ 0 W/m². A reading of
                     # 0 (e.g. at night) is indistinguishable from full
@@ -367,7 +460,10 @@ class WeatherSenseSensor(SensorEntity):
                     # solar correction ignores cloudiness anyway.
                     cloudiness = max(0, min(100, 100 * (1 - self._solar_radiation / 1000)))
                 except (ValueError, TypeError):
-                    _LOGGER.debug("Invalid solar radiation value")
+                    _LOGGER.debug(
+                        "%s: invalid solar radiation value %r from %s",
+                        label, solar_state.state, self._solar_radiation_entity_id,
+                    )
 
         # Calculate feels-like temperature
         current_time = dt_util.now()

@@ -131,6 +131,20 @@ class TestConfigFlowUserStep:
 
         assert result["errors"] == {CONF_TEMPERATURE_SENSOR: "temperature_required"}
 
+    def test_same_sensor_for_both_inputs_is_rejected(self):
+        """One entity cannot be temperature AND humidity source: its single
+        state would feed both, silently producing nonsense."""
+        flow = WeatherSenseConfigFlow()
+
+        result = run(flow.async_step_user({
+            CONF_TEMPERATURE_SENSOR: TEMP,
+            CONF_HUMIDITY_SENSOR: TEMP,
+        }))
+
+        assert result["type"] == "form"
+        assert result["errors"] == {"base": "same_sensor"}
+        assert flow.__dict__.get("created_entries") is None
+
     def test_no_input_shows_form_without_errors(self):
         flow = WeatherSenseConfigFlow()
 

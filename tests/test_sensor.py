@@ -8,6 +8,7 @@ transitions, EMA smoothing, and the native-value-is-always-Celsius rule.
 import asyncio
 import inspect
 import logging
+import math
 from unittest.mock import MagicMock
 
 import pytest
@@ -179,7 +180,7 @@ class TestWindSpeedConversion:
         with caplog.at_level(logging.WARNING):
             update(sensor)
         assert sensor._attr_extra_state_attributes["wind_speed"] == 5.0
-        assert "Unsupported wind speed unit" in caplog.text
+        assert "unsupported wind speed unit" in caplog.text
 
     def test_negative_beaufort_clamped_to_zero(self):
         """A glitched negative Beaufort reading must not raise (complex power)."""
@@ -228,7 +229,7 @@ class TestPressureConversion:
         with caplog.at_level(logging.WARNING):
             update(sensor)
         assert sensor._attr_extra_state_attributes["pressure"] == 101.3
-        assert "Unsupported pressure unit" in caplog.text
+        assert "unsupported pressure unit" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -639,3 +640,185 @@ class TestAsyncSetupEntry:
         sensor = added[0]
         assert sensor._is_outdoor is False
         assert sensor._smoothing_enabled is True
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic warnings (GitHub issue #11)
+# ---------------------------------------------------------------------------
+
+
+class TestDiagnosticWarnings:
+    """Every warning must say WHICH WeatherSense sensor and WHICH input is
+    the problem — a one-tick flicker must be identifiable from the log alone."""
+
+    def test_missing_temperature_names_sensor_and_source(self, caplog):
+        hass = FakeHass()
+        hass.states.set(HUM, 50.0)
+        sensor = make_sensor(hass)
+        sensor.entity_id = "sensor.feels_like_wohnen"
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+        assert "sensor.feels_like_wohnen" in caplog.text
+        assert f"temperature source {TEMP} has no state" in caplog.text
+        assert sensor._attr_available is False
+
+    def test_missing_both_inputs_names_both(self, caplog):
+        sensor = make_sensor(FakeHass())
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+        assert f"temperature source {TEMP}" in caplog.text
+        assert f"humidity source {HUM}" in caplog.text
+
+    def test_unavailable_flicker_names_which_input(self, caplog):
+        """The reporter's case: a sub-second unavailable tick must leave a
+        log line naming the exact source entity that blinked."""
+        hass = make_hass()
+        hass.states.set(TEMP, "unavailable")
+        sensor = make_sensor(hass)
+        sensor.entity_id = "sensor.feels_like_wohnen"
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+        assert f"temperature source {TEMP} is unavailable" in caplog.text
+        assert "humidity" not in caplog.text  # only the flickering input is named
+        assert sensor._attr_available is False
+
+    def test_unknown_humidity_named(self, caplog):
+        hass = make_hass()
+        hass.states.set(HUM, "unknown")
+        sensor = make_sensor(hass)
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+        assert f"humidity source {HUM} is unknown" in caplog.text
+
+    def test_non_numeric_value_names_entity_and_raw_values(self, caplog):
+        hass = make_hass()
+        hass.states.set(TEMP, "error")
+        sensor = make_sensor(hass)
+        sensor.entity_id = "sensor.feels_like_wohnen"
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+        assert "sensor.feels_like_wohnen" in caplog.text
+        assert TEMP in caplog.text and "'error'" in caplog.text
+        assert sensor._attr_available is False
+
+    def test_falls_back_to_name_without_entity_id(self, caplog):
+        hass = FakeHass()
+        sensor = make_sensor(hass)
+        sensor.entity_id = None  # before platform registration
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+        assert "Feels Like" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Input validation
+# ---------------------------------------------------------------------------
+
+
+class TestInputValidation:
+    """Bad source data must not silently poison the calculation."""
+
+    def test_nan_temperature_flips_unavailable(self):
+        hass = make_hass()
+        hass.states.set(TEMP, "nan")
+        sensor = make_sensor(hass)
+        update(sensor)
+        assert sensor._attr_available is False
+
+    def test_inf_temperature_flips_unavailable(self):
+        hass = make_hass()
+        hass.states.set(TEMP, "inf")
+        sensor = make_sensor(hass)
+        update(sensor)
+        assert sensor._attr_available is False
+
+    def test_implausible_temperature_flips_unavailable(self, caplog):
+        """500°C cannot be real data; marking unavailable prevents garbage
+        (and extreme negatives near -237.7°C crash the vapor-pressure exp)."""
+        hass = make_hass(temp=500.0)
+        sensor = make_sensor(hass)
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+        assert sensor._attr_available is False
+        assert "implausible temperature" in caplog.text
+
+    def test_extreme_negative_temperature_no_crash(self):
+        hass = make_hass(temp=-237.7)
+        sensor = make_sensor(hass)
+        update(sensor)
+        assert sensor._attr_available is False
+
+    def test_kelvin_converted_to_celsius(self):
+        hass = make_hass(temp=293.15, temp_unit="K")
+        sensor = make_sensor(hass)
+        update(sensor)
+        assert sensor._attr_extra_state_attributes["temperature"] == pytest.approx(20.0)
+
+    def test_unknown_temperature_unit_warns_and_assumes_celsius(self, caplog):
+        hass = make_hass(temp=20.0, temp_unit="°R")
+        sensor = make_sensor(hass)
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+        assert "unsupported temperature unit" in caplog.text
+        assert sensor._attr_extra_state_attributes["temperature"] == 20.0
+
+    def test_humidity_over_100_clamped_and_warns(self, caplog):
+        hass = make_hass(humidity=140.0)
+        sensor = make_sensor(hass)
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+        assert sensor._attr_extra_state_attributes["humidity"] == 100.0
+        assert "outside 0-100" in caplog.text
+        assert sensor._attr_available is True
+
+    def test_negative_humidity_clamped_to_zero(self):
+        hass = make_hass(humidity=-5.0)
+        sensor = make_sensor(hass)
+        update(sensor)
+        assert sensor._attr_extra_state_attributes["humidity"] == 0.0
+
+    def test_nan_pressure_does_not_poison_native_value(self):
+        """Regression: nan <= 0 is False, so a nan pressure flowed into the
+        correction and made the whole native value nan."""
+        hass = make_hass()
+        hass.states.set(PRESSURE, "nan")
+        sensor = make_sensor(hass, pressure_entity_id=PRESSURE)
+        update(sensor)
+        assert "pressure" not in sensor._attr_extra_state_attributes
+        assert math.isfinite(sensor._attr_native_value)
+
+    def test_negative_wind_clamped_to_calm(self):
+        """Negative wind is sensor noise; clamped to 0 like negative
+        Beaufort already was."""
+        hass = make_hass()
+        hass.states.set(WIND, -3.0, "m/s")
+        sensor = make_sensor(hass, wind_speed_entity_id=WIND)
+        update(sensor)
+        assert sensor._attr_extra_state_attributes["wind_speed"] == 0.0
+        assert math.isfinite(sensor._attr_native_value)
+
+    def test_nan_wind_treated_as_invalid(self):
+        hass = make_hass()
+        hass.states.set(WIND, "nan", "m/s")
+        sensor = make_sensor(hass, wind_speed_entity_id=WIND)
+        update(sensor)
+        assert "wind_speed" not in sensor._attr_extra_state_attributes
+        assert math.isfinite(sensor._attr_native_value)
+
+    def test_nan_wind_direction_ignored(self):
+        hass = make_hass()
+        hass.states.set(WIND_DIR, "nan")
+        sensor = make_sensor(
+            hass, wind_direction_entity_id=WIND_DIR, wind_direction_correction=True
+        )
+        update(sensor)
+        assert "wind_direction" not in sensor._attr_extra_state_attributes
+        assert math.isfinite(sensor._attr_native_value)
+
+    def test_nan_solar_radiation_ignored(self):
+        hass = make_hass()
+        hass.states.set(SOLAR, "nan")
+        sensor = make_sensor(hass, solar_radiation_entity_id=SOLAR)
+        update(sensor)
+        assert sensor._solar_radiation is None
+        assert math.isfinite(sensor._attr_native_value)

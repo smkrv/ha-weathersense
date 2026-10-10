@@ -23,7 +23,8 @@
     },
     "error": {
       "temperature_required": "तापमान सेंसर आवश्यक है",
-      "humidity_required": "आर्द्रता सेंसर आवश्यक है"
+      "humidity_required": "आर्द्रता सेंसर आवश्यक है",
+      "same_sensor": "तापमान और आर्द्रता सेंसर अलग-अलग होने चाहिए"
     }
   },
   "options": {

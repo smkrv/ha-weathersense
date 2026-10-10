@@ -23,7 +23,8 @@
     },
     "error": {
       "temperature_required": "需要温度传感器",
-      "humidity_required": "需要湿度传感器"
+      "humidity_required": "需要湿度传感器",
+      "same_sensor": "温度和湿度传感器必须不同"
     }
   },
   "options": {

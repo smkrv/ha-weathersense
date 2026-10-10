@@ -58,6 +58,14 @@ class WeatherSenseConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not user_input.get(CONF_HUMIDITY_SENSOR):
                 errors[CONF_HUMIDITY_SENSOR] = "humidity_required"
 
+            # One entity cannot be both inputs: a single state would feed
+            # temperature AND humidity, silently producing nonsense.
+            if user_input.get(CONF_TEMPERATURE_SENSOR) and (
+                user_input.get(CONF_TEMPERATURE_SENSOR)
+                == user_input.get(CONF_HUMIDITY_SENSOR)
+            ):
+                errors["base"] = "same_sensor"
+
             if not errors:
                 # Create entry
                 return self.async_create_entry(
