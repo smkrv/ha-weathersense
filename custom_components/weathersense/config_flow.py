@@ -148,6 +148,16 @@ class WeatherSenseOptionsFlow(config_entries.OptionsFlow):
         current_config = {**self._entry.data, **self._entry.options}
 
         if user_input is not None:
+            # Same guard as the initial flow: one entity cannot feed both
+            # inputs. Reshow the form with the submitted values so the user
+            # sees what they picked.
+            if (
+                user_input.get(CONF_TEMPERATURE_SENSOR)
+                == user_input.get(CONF_HUMIDITY_SENSOR)
+            ):
+                return self._show_options_form(
+                    user_input, errors={"base": "same_sensor"}
+                )
             for field in self._CLEARABLE_FIELDS:
                 user_input.setdefault(field, None)
             if current_config.get(CONF_DISPLAY_UNIT) and user_input.get(CONF_DISPLAY_UNIT) is None:
@@ -172,7 +182,7 @@ class WeatherSenseOptionsFlow(config_entries.OptionsFlow):
                     reg_entry.entity_id, "sensor", sensor_options
                 )
 
-    def _show_options_form(self, current_config):
+    def _show_options_form(self, current_config, errors=None):
         """Build and show the options form."""
 
         def _entity_selector():
@@ -228,4 +238,6 @@ class WeatherSenseOptionsFlow(config_entries.OptionsFlow):
             ),
         }
 
-        return self.async_show_form(step_id="init", data_schema=vol.Schema(options))
+        return self.async_show_form(
+            step_id="init", data_schema=vol.Schema(options), errors=errors
+        )

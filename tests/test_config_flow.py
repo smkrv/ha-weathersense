@@ -223,6 +223,25 @@ class TestOptionsFlowSubmit:
     """Cleared optional fields must be written back as explicit None, or the
     {**data, **options} merge in async_setup_entry resurrects the old value."""
 
+    def test_same_sensor_for_both_inputs_is_rejected(self):
+        """Regression (Devin Review): the same_sensor check existed only in
+        the initial flow, so the options flow could still pair one entity
+        as temperature AND humidity source."""
+        flow, _ = make_options_flow(data={
+            CONF_TEMPERATURE_SENSOR: TEMP,
+            CONF_HUMIDITY_SENSOR: HUM,
+        })
+
+        result = run(flow.async_step_init({
+            CONF_TEMPERATURE_SENSOR: TEMP,
+            CONF_HUMIDITY_SENSOR: TEMP,
+        }))
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "init"
+        assert result["errors"] == {"base": "same_sensor"}
+        assert flow.__dict__.get("created_entries") is None
+
     def test_cleared_fields_written_back_as_none(self):
         flow, _ = make_options_flow(data={
             CONF_TEMPERATURE_SENSOR: TEMP,

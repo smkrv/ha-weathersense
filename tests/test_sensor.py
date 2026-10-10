@@ -805,6 +805,51 @@ class TestInputValidation:
         assert "wind_speed" not in sensor._attr_extra_state_attributes
         assert math.isfinite(sensor._attr_native_value)
 
+    @pytest.mark.parametrize("state,unit", [
+        ("200", "m/s"),      # above every recorded surface wind (~113 m/s gust)
+        ("1e308", "m/s"),    # finite, but *3.6 -> inf -> inf-inf -> nan in wind chill
+        ("1e300", "mph"),    # conversion product stays finite, still implausible
+    ])
+    def test_implausible_wind_dropped_not_published_as_nan(self, state, unit):
+        """Regression (Devin Review): huge finite wind passed validation and
+        overflowed inside calculate_wind_chill, publishing a nan temperature."""
+        hass = make_hass(temp=5.0)  # cold day -> wind chill path
+        hass.states.set(WIND, state, unit)
+        sensor = make_sensor(hass, wind_speed_entity_id=WIND)
+        update(sensor)
+        assert "wind_speed" not in sensor._attr_extra_state_attributes
+        assert math.isfinite(sensor._attr_native_value)
+
+    def test_plausible_high_wind_kept(self):
+        hass = make_hass(temp=5.0)
+        hass.states.set(WIND, "300", "km/h")  # 83.3 m/s: extreme but real
+        sensor = make_sensor(hass, wind_speed_entity_id=WIND)
+        update(sensor)
+        assert sensor._attr_extra_state_attributes["wind_speed"] == pytest.approx(83.33, rel=0.01)
+
+    def test_huge_beaufort_does_not_abort_update(self):
+        """Regression (Devin Review): a huge finite Beaufort value overflows
+        the ** 1.5 conversion with OverflowError, which escaped the handler
+        and aborted the whole update."""
+        hass = make_hass()
+        hass.states.set(WIND, "1e300", "Beaufort")
+        sensor = make_sensor(hass, wind_speed_entity_id=WIND)
+        update(sensor)
+        assert "wind_speed" not in sensor._attr_extra_state_attributes
+        assert sensor._attr_available is True
+        assert math.isfinite(sensor._attr_native_value)
+
+    def test_huge_bar_pressure_not_published_as_infinity(self):
+        """Regression (Devin Review): bar * 100 returns inf silently, and the
+        attribute used to publish the infinite value."""
+        hass = make_hass()
+        hass.states.set(PRESSURE, "1e307", "bar")
+        sensor = make_sensor(hass, pressure_entity_id=PRESSURE)
+        update(sensor)
+        assert "pressure" not in sensor._attr_extra_state_attributes
+        assert sensor._pressure is None
+        assert math.isfinite(sensor._attr_native_value)
+
     def test_nan_wind_direction_ignored(self):
         hass = make_hass()
         hass.states.set(WIND_DIR, "nan")

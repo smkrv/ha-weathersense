@@ -45,6 +45,9 @@
           "display_unit": "Temperaturanzeigeeinheit"
         }
       }
+    },
+    "error": {
+      "same_sensor": "Temperatur- und Feuchtigkeitssensor müssen unterschiedlich sein"
     }
   }
 }

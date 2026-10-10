@@ -45,6 +45,9 @@
           "display_unit": "Unidad de Visualización de Temperatura"
         }
       }
+    },
+    "error": {
+      "same_sensor": "Los sensores de temperatura y humedad deben ser diferentes"
     }
   }
 }

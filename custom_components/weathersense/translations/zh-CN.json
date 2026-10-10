@@ -45,6 +45,9 @@
           "display_unit": "温度显示单位"
         }
       }
+    },
+    "error": {
+      "same_sensor": "温度和湿度传感器必须不同"
     }
   }
 }

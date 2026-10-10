@@ -45,6 +45,9 @@
           "display_unit": "Display Temperature Unit"
         }
       }
+    },
+    "error": {
+      "same_sensor": "Temperature and humidity must be different sensors"
     }
   }
 }
