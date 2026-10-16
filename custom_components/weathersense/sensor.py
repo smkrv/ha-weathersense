@@ -75,6 +75,15 @@ from .weather_calculator import calculate_feels_like
 _LOGGER = logging.getLogger(__name__)
 
 
+def _finite_or_none(value) -> float | None:
+    """Parse a state string; None for non-numeric, nan or inf."""
+    try:
+        number = float(value)
+    except (ValueError, TypeError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
@@ -164,6 +173,12 @@ class WeatherSenseSensor(SensorEntity):
         self._calculation_method = None
         self._comfort_level = None
 
+        # Warn-once bookkeeping (see _warn): conditions raised by the previous
+        # update, conditions raised and checks run by the one in progress
+        self._warned: set[str] = set()
+        self._raised: set[str] = set()
+        self._checked: set[str] = set()
+
         # EMA smoothing
         self._smoothing_enabled = smoothing_enabled
         self._smoothing_factor = max(0.05, min(0.95, smoothing_factor))
@@ -179,21 +194,17 @@ class WeatherSenseSensor(SensorEntity):
 
     async def async_added_to_hass(self) -> None:
         """Set up listeners when the entity is added to Home Assistant."""
-        # Set up listeners for all relevant entities (deduplicated: the same
-        # entity may be configured for more than one role)
-        entities_to_track = list(dict.fromkeys([
+        # Set up listeners for all relevant entities, deduplicated: HA runs
+        # the callback once per listed id, so an entity configured for two
+        # roles would trigger two updates per state change
+        entities_to_track = list(dict.fromkeys(filter(None, [
             self._temperature_entity_id,
             self._humidity_entity_id,
-        ]))
-
-        if self._wind_speed_entity_id:
-            entities_to_track.append(self._wind_speed_entity_id)
-        if self._pressure_entity_id:
-            entities_to_track.append(self._pressure_entity_id)
-        if self._solar_radiation_entity_id:
-            entities_to_track.append(self._solar_radiation_entity_id)
-        if self._wind_direction_entity_id:
-            entities_to_track.append(self._wind_direction_entity_id)
+            self._wind_speed_entity_id,
+            self._pressure_entity_id,
+            self._solar_radiation_entity_id,
+            self._wind_direction_entity_id,
+        ])))
 
         # suggested_unit_of_measurement only applies on first registration,
         # so a display unit changed later via the options flow needs the
@@ -250,8 +261,39 @@ class WeatherSenseSensor(SensorEntity):
         """Label that identifies this sensor in log lines (issue #11)."""
         return self.entity_id or self._attr_name
 
+    def _warn(self, keys: str | list[str], msg: str, *args) -> None:
+        """Log a bad-input condition at WARNING once per episode.
+
+        _update_state runs on every state change of any tracked input, so a
+        persistent condition (humidity stuck at 101% overnight, a dead source)
+        would repeat on each update. A key names one condition, per source
+        where a line can cover two ("offline:<entity_id>"). A line whose keys
+        were all raised before goes to DEBUG. Once an update runs the check
+        and finds the condition gone, its next occurrence warns again, so
+        every flicker from #11 still leaves its own line.
+        """
+        if isinstance(keys, str):
+            keys = [keys]
+        is_new = not self._warned.issuperset(keys)
+        self._raised.update(keys)
+        _LOGGER.log(logging.WARNING if is_new else logging.DEBUG, msg, *args)
+
     async def _update_state(self) -> None:
         """Update the state of the sensor."""
+        self._raised = set()
+        self._checked = set()
+        try:
+            await self._compute_state()
+        finally:
+            # A check that did not run this time (an early return, an
+            # unparseable optional input) keeps its episode open
+            self._warned = self._raised | {
+                key for key in self._warned
+                if key.split(":", 1)[0] not in self._checked
+            }
+
+    async def _compute_state(self) -> None:
+        """Read the inputs, calculate and publish the feels-like state."""
         label = self._log_label()
 
         # Get current values from entities
@@ -260,8 +302,9 @@ class WeatherSenseSensor(SensorEntity):
 
         # Name exactly which required input has no state at all, so a log line
         # is enough to find the culprit without cross-referencing history.
+        self._checked.add("missing")
         missing = [
-            f"{kind} source {eid} has no state"
+            (eid, f"{kind} source {eid} has no state")
             for kind, state, eid in (
                 ("temperature", temp_state, self._temperature_entity_id),
                 ("humidity", humidity_state, self._humidity_entity_id),
@@ -269,14 +312,16 @@ class WeatherSenseSensor(SensorEntity):
             if not state
         ]
         if missing:
-            _LOGGER.warning("%s: %s", label, "; ".join(missing))
+            self._warn([f"missing:{eid}" for eid, _ in missing],
+                       "%s: %s", label, "; ".join(text for _, text in missing))
             self._set_unavailable()
             return
 
         # An unavailable/unknown flicker must also say which input blinked;
         # a generic warning leaves users guessing across many sensors (#11).
+        self._checked.add("offline")
         offline = [
-            f"{kind} source {eid} is {state.state}"
+            (eid, f"{kind} source {eid} is {state.state}")
             for kind, state, eid in (
                 ("temperature", temp_state, self._temperature_entity_id),
                 ("humidity", humidity_state, self._humidity_entity_id),
@@ -284,17 +329,27 @@ class WeatherSenseSensor(SensorEntity):
             if state.state in ("unavailable", "unknown")
         ]
         if offline:
-            _LOGGER.warning("%s: %s", label, "; ".join(offline))
+            # Keyed by source, not state: unknown -> unavailable on the same
+            # source is one episode
+            self._warn([f"offline:{eid}" for eid, _ in offline],
+                       "%s: %s", label, "; ".join(text for _, text in offline))
             self._set_unavailable()
             return
 
-        try:
-            raw_temperature = float(temp_state.state)
-            raw_humidity = float(humidity_state.state)
-            if not math.isfinite(raw_temperature) or not math.isfinite(raw_humidity):
-                raise ValueError("non-finite value")
-        except (ValueError, TypeError):
-            _LOGGER.warning(
+        self._checked.add("invalid")
+        raw_temperature = _finite_or_none(temp_state.state)
+        raw_humidity = _finite_or_none(humidity_state.state)
+        if raw_temperature is None or raw_humidity is None:
+            invalid = [
+                eid
+                for eid, value in (
+                    (self._temperature_entity_id, raw_temperature),
+                    (self._humidity_entity_id, raw_humidity),
+                )
+                if value is None
+            ]
+            self._warn(
+                [f"invalid:{eid}" for eid in invalid],
                 "%s: invalid temperature or humidity values "
                 "(temperature source %s = %r, humidity source %s = %r)",
                 label,
@@ -307,6 +362,7 @@ class WeatherSenseSensor(SensorEntity):
         # Convert temperature to Celsius if needed
         self._temperature = raw_temperature
         temp_unit = temp_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+        self._checked.add("temperature_unit")
         if temp_unit == UnitOfTemperature.FAHRENHEIT:
             self._temperature = (self._temperature - 32) * 5/9
             _LOGGER.debug("Converted temperature from %s°F to %s°C",
@@ -316,15 +372,18 @@ class WeatherSenseSensor(SensorEntity):
             _LOGGER.debug("Converted temperature from %sK to %s°C",
                          raw_temperature, self._temperature)
         elif temp_unit not in (None, UnitOfTemperature.CELSIUS):
-            _LOGGER.warning(
+            self._warn(
+                "temperature_unit",
                 "%s: unsupported temperature unit %s on %s; assuming °C",
                 label, temp_unit, self._temperature_entity_id,
             )
 
         # Physically implausible readings mark the sensor unavailable instead
         # of feeding garbage into the calculators (and crashing on extremes).
+        self._checked.add("temperature_range")
         if not -80 <= self._temperature <= 80:
-            _LOGGER.warning(
+            self._warn(
+                "temperature_range",
                 "%s: implausible temperature %.1f°C from %s",
                 label, self._temperature, self._temperature_entity_id,
             )
@@ -333,8 +392,10 @@ class WeatherSenseSensor(SensorEntity):
 
         # Humidity outside 0-100% is bad source data; clamp rather than drop,
         # but warn so the user can fix the upstream sensor.
+        self._checked.add("humidity_range")
         if raw_humidity < 0 or raw_humidity > 100:
-            _LOGGER.warning(
+            self._warn(
+                "humidity_range",
                 "%s: humidity %.1f%% from %s outside 0-100, clamped",
                 label, raw_humidity, self._humidity_entity_id,
             )
@@ -355,6 +416,7 @@ class WeatherSenseSensor(SensorEntity):
                     wind_speed = max(0.0, wind_speed)
                     # Convert to m/s if needed
                     wind_unit = wind_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+                    self._checked.add("wind_unit")
                     if wind_unit == UnitOfSpeed.KILOMETERS_PER_HOUR:
                         wind_speed = wind_speed / 3.6
                     elif wind_unit == UnitOfSpeed.MILES_PER_HOUR:
@@ -369,7 +431,8 @@ class WeatherSenseSensor(SensorEntity):
                         # complex number and crash the update.
                         wind_speed = 0.836 * max(0.0, wind_speed) ** 1.5
                     elif wind_unit not in (None, UnitOfSpeed.METERS_PER_SECOND):
-                        _LOGGER.warning(
+                        self._warn(
+                            "wind_unit",
                             "%s: unsupported wind speed unit %s on %s; assuming m/s",
                             label, wind_unit, self._wind_speed_entity_id,
                         )
@@ -403,6 +466,7 @@ class WeatherSenseSensor(SensorEntity):
 
                     # Convert to kPa if needed
                     pressure_unit = pressure_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+                    self._checked.add("pressure_unit")
                     if pressure_unit in (UnitOfPressure.HPA, UnitOfPressure.MBAR):
                         # 1 hPa = 1 mbar = 0.1 kPa
                         pressure_value = pressure_value * 0.1
@@ -419,7 +483,8 @@ class WeatherSenseSensor(SensorEntity):
                     elif pressure_unit == UnitOfPressure.PSI:
                         pressure_value = pressure_value * 6.89476
                     elif pressure_unit not in (None, UnitOfPressure.KPA):
-                        _LOGGER.warning(
+                        self._warn(
+                            "pressure_unit",
                             "%s: unsupported pressure unit %s on %s; assuming kPa",
                             label, pressure_unit, self._pressure_entity_id,
                         )

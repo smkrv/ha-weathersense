@@ -242,6 +242,29 @@ class TestOptionsFlowSubmit:
         assert result["errors"] == {"base": "same_sensor"}
         assert flow.__dict__.get("created_entries") is None
 
+    def test_same_sensor_reshow_keeps_submitted_values(self):
+        """The rejected form shows what the user picked, not the stored
+        entry: a cleared optional sensor stays cleared, a toggle keeps the
+        submitted value."""
+        flow, _ = make_options_flow(data={
+            CONF_TEMPERATURE_SENSOR: TEMP,
+            CONF_HUMIDITY_SENSOR: HUM,
+            CONF_WIND_SPEED_SENSOR: WIND,
+            CONF_SMOOTHING_ENABLED: False,
+        })
+
+        result = run(flow.async_step_init({
+            CONF_TEMPERATURE_SENSOR: TEMP,
+            CONF_HUMIDITY_SENSOR: TEMP,
+            CONF_SMOOTHING_ENABLED: True,
+        }))
+
+        schema = result["data_schema"]
+        assert schema_marker(schema, CONF_TEMPERATURE_SENSOR).default == TEMP
+        assert schema_marker(schema, CONF_HUMIDITY_SENSOR).default == TEMP
+        assert schema_marker(schema, CONF_WIND_SPEED_SENSOR).description is None
+        assert schema_marker(schema, CONF_SMOOTHING_ENABLED).default is True
+
     def test_cleared_fields_written_back_as_none(self):
         flow, _ = make_options_flow(data={
             CONF_TEMPERATURE_SENSOR: TEMP,

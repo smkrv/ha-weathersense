@@ -26,9 +26,15 @@ def _flatten(d, prefix=""):
     return keys
 
 
+def _read(path):
+    # Explicit UTF-8: hi and zh-CN fail to decode under a non-UTF-8 locale
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
 def _load_all():
     files = sorted(glob.glob(os.path.join(TRANSLATIONS_DIR, "*.json")))
-    return {os.path.basename(f): _flatten(json.load(open(f))) for f in files}
+    return {os.path.basename(f): _flatten(_read(f)) for f in files}
 
 
 def test_all_locales_cover_every_language_in_integration():
@@ -49,6 +55,6 @@ def test_all_translation_files_have_identical_keys():
 def test_error_keys_exist_for_config_and_options():
     """same_sensor is raised in both the user step (config.error) and the
     options step (options.error); both paths must resolve."""
-    en = json.load(open(os.path.join(TRANSLATIONS_DIR, "en.json")))
+    en = _read(os.path.join(TRANSLATIONS_DIR, "en.json"))
     assert "same_sensor" in en["config"]["error"]
     assert "same_sensor" in en["options"]["error"]

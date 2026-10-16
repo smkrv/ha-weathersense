@@ -38,7 +38,7 @@
 - Includes comfort status indicator (is_comfortable attribute)
 - Dynamic icons that change based on comfort level
 - Supports different temperature units (°C/°F)
-- Automatic unit conversion for input sensors: temperature (°C/°F), wind speed (m/s, km/h, mph, kn, ft/s, Beaufort), pressure (kPa, hPa, mbar, mmHg, inHg, Pa, bar, cbar, psi)
+- Automatic unit conversion for input sensors: temperature (°C/°F/K), wind speed (m/s, km/h, mph, kn, ft/s, Beaufort), pressure (kPa, hPa, mbar, mmHg, inHg, Pa, bar, cbar, psi)
 - Easy setup through the UI
 
 ## 🎨 Companion Card
@@ -125,7 +125,7 @@ The integration provides the following attributes:
 
 > **Note:** `comfort_level_localized`, `comfort_description`, `comfort_explanation` and `calculation_method` are automatically localized based on your Home Assistant language setting. `comfort_level` and `calculation_method_key` always stay in English so automations keep working regardless of language.
 >
-> The sensor becomes `unavailable` when its required inputs (temperature or humidity) are unavailable, instead of freezing on the last value.
+> The sensor becomes `unavailable` when its required inputs (temperature or humidity) are unavailable, non-numeric, or the temperature is outside -80...80 °C, instead of freezing on the last value. Humidity outside 0-100% is clamped. Each input problem is logged once as a warning naming the source sensor, and logged again only if it clears and comes back.
 
 ## Dynamic Icons
 
@@ -294,7 +294,7 @@ Future improvements planned for this integration:
 
 2. **Incorrect comfort level**: The comfort level is determined based on the calculated feels-like temperature. If it seems incorrect, verify that the outdoor/indoor setting matches your sensor's actual location.
 
-3. **Sensor shows "unavailable"**: Ensure all required source sensors are available and providing valid readings.
+3. **Sensor shows "unavailable"**: Ensure all required source sensors are available and providing valid readings. The Home Assistant log names the WeatherSense sensor and the source that caused it, e.g. `sensor.feels_like: temperature source sensor.outdoor_temp is unavailable`.
 
 ### Debug Logging
 

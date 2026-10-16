@@ -553,6 +553,27 @@ class TestAsyncAddedToHass:
         assert tracked["entity_ids"] == [TEMP, HUM, WIND, PRESSURE, SOLAR, WIND_DIR]
         assert len(sensor.on_remove_callbacks) == 1
 
+    def test_entity_in_two_roles_tracked_once(self, monkeypatch):
+        """HA registers one job per listed id: a duplicate would run the
+        update twice for a single state change."""
+        tracked = {}
+
+        def fake_track(hass_arg, entity_ids, action):
+            tracked["entity_ids"] = entity_ids
+            return lambda: None
+
+        monkeypatch.setattr(
+            "weathersense.sensor.async_track_state_change_event", fake_track
+        )
+        sensor = make_sensor(
+            make_hass(),
+            wind_speed_entity_id=WIND,
+            wind_direction_entity_id=WIND,
+        )
+        asyncio.run(sensor.async_added_to_hass())
+
+        assert tracked["entity_ids"] == [TEMP, HUM, WIND]
+
     def test_display_unit_updates_registry_override(self, monkeypatch):
         registry = FakeEntityRegistry()
         registry.async_get = lambda entity_id: FakeRegistryEntry(
@@ -708,6 +729,180 @@ class TestDiagnosticWarnings:
         with caplog.at_level(logging.WARNING):
             update(sensor)
         assert "Feels Like" in caplog.text
+
+
+def warning_lines(caplog):
+    return [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+
+
+def _missing_temperature(hass):
+    hass.states.remove(TEMP)
+
+
+def _offline_humidity(hass):
+    hass.states.set(HUM, "unknown")
+
+
+def _non_numeric_temperature(hass):
+    hass.states.set(TEMP, "error")
+
+
+def _unsupported_temperature_unit(hass):
+    hass.states.set(TEMP, 20.0, "°R")
+
+
+def _implausible_temperature(hass):
+    hass.states.set(TEMP, 500.0, "°C")
+
+
+def _humidity_out_of_range(hass):
+    hass.states.set(HUM, 100.4)
+
+
+def _unsupported_wind_unit(hass):
+    hass.states.set(WIND, 3.0, "furlong/fortnight")
+
+
+def _unsupported_pressure_unit(hass):
+    hass.states.set(PRESSURE, 1.0, "atm")
+
+
+class TestWarnOncePerEpisode:
+    """_update_state runs on every state change of any tracked input, so a
+    condition that persists (humidity stuck at 101% overnight, a dead source)
+    must log one WARNING per episode, not one per update. A condition that
+    clears and comes back warns again: every flicker from #11 still leaves
+    its own line."""
+
+    @pytest.mark.parametrize("break_input", [
+        _missing_temperature,
+        _offline_humidity,
+        _non_numeric_temperature,
+        _unsupported_temperature_unit,
+        _implausible_temperature,
+        _humidity_out_of_range,
+        _unsupported_wind_unit,
+        _unsupported_pressure_unit,
+    ])
+    def test_persistent_condition_warns_once(self, caplog, break_input):
+        hass = make_hass()
+        hass.states.set(WIND, 3.0, "m/s")
+        hass.states.set(PRESSURE, 101.3, "kPa")
+        break_input(hass)
+        sensor = make_sensor(
+            hass, wind_speed_entity_id=WIND, pressure_entity_id=PRESSURE
+        )
+        with caplog.at_level(logging.WARNING):
+            for _ in range(5):
+                update(sensor)
+        assert len(warning_lines(caplog)) == 1
+
+    def test_repeats_are_logged_at_debug(self, caplog):
+        sensor = make_sensor(make_hass(humidity=100.4))
+        with caplog.at_level(logging.DEBUG):
+            update(sensor)
+            update(sensor)
+        clamp = [r.levelno for r in caplog.records if "outside 0-100" in r.getMessage()]
+        assert clamp == [logging.WARNING, logging.DEBUG]
+
+    def test_changing_value_of_same_condition_warns_once(self, caplog):
+        """The episode is the condition, not the exact reading: a drifting
+        101.2 -> 102.5% is still the same out-of-range humidity."""
+        hass = make_hass()
+        sensor = make_sensor(hass)
+        with caplog.at_level(logging.WARNING):
+            for humidity in (100.4, 101.2, 102.5):
+                hass.states.set(HUM, humidity)
+                update(sensor)
+        assert len(warning_lines(caplog)) == 1
+
+    def test_cleared_then_recurring_condition_warns_again(self, caplog):
+        hass = make_hass()
+        sensor = make_sensor(hass)
+        with caplog.at_level(logging.WARNING):
+            hass.states.set(TEMP, "unavailable")
+            update(sensor)
+            update(sensor)  # same flicker seen by a humidity update
+            hass.states.set(TEMP, 20.0, "°C")
+            update(sensor)  # recovered
+            hass.states.set(TEMP, "unavailable")
+            update(sensor)  # second flicker
+        lines = warning_lines(caplog)
+        assert lines == [f"Feels Like: temperature source {TEMP} is unavailable"] * 2
+
+    def test_second_input_failing_while_first_is_invalid_warns(self, caplog):
+        """Episodes are per source: humidity breaking while temperature is
+        still bad is news; humidity staying bad after temperature recovers
+        is not."""
+        hass = make_hass()
+        sensor = make_sensor(hass)
+        with caplog.at_level(logging.WARNING):
+            hass.states.set(TEMP, "error")
+            update(sensor)
+            hass.states.set(HUM, "nan")
+            update(sensor)
+            hass.states.set(TEMP, 20.0, "°C")
+            update(sensor)
+        lines = warning_lines(caplog)
+        assert len(lines) == 2
+        assert "'nan'" in lines[1]
+
+    def test_second_source_going_offline_warns(self, caplog):
+        hass = make_hass()
+        sensor = make_sensor(hass)
+        with caplog.at_level(logging.WARNING):
+            hass.states.set(TEMP, "unavailable")
+            update(sensor)
+            hass.states.set(HUM, "unavailable")
+            update(sensor)
+            hass.states.set(HUM, 50.0)
+            update(sensor)  # temperature is still the same offline episode
+        lines = warning_lines(caplog)
+        assert len(lines) == 2
+        assert f"humidity source {HUM} is unavailable" in lines[1]
+
+    def test_persistent_condition_survives_required_input_flicker(self, caplog):
+        """A flicker returns before the humidity and wind checks run; that
+        must not end their episodes."""
+        hass = make_hass(humidity=101.0)
+        hass.states.set(WIND, 3.0, "furlong/fortnight")
+        sensor = make_sensor(hass, wind_speed_entity_id=WIND)
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+            hass.states.set(TEMP, "unavailable")
+            update(sensor)
+            hass.states.set(TEMP, 20.0, "°C")
+            update(sensor)
+        lines = warning_lines(caplog)
+        assert len(lines) == 3
+        assert "outside 0-100" in lines[0]
+        assert "unsupported wind speed unit" in lines[1]
+        assert "is unavailable" in lines[2]
+
+    def test_optional_input_flicker_keeps_its_unit_episode(self, caplog):
+        hass = make_hass()
+        hass.states.set(WIND, 3.0, "furlong/fortnight")
+        sensor = make_sensor(hass, wind_speed_entity_id=WIND)
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+            hass.states.set(WIND, "unavailable", "furlong/fortnight")
+            update(sensor)
+            hass.states.set(WIND, 3.0, "furlong/fortnight")
+            update(sensor)
+        assert len(warning_lines(caplog)) == 1
+
+    def test_new_condition_warns_while_another_persists(self, caplog):
+        hass = make_hass(humidity=100.4)
+        hass.states.set(WIND, 3.0, "m/s")
+        sensor = make_sensor(hass, wind_speed_entity_id=WIND)
+        with caplog.at_level(logging.WARNING):
+            update(sensor)
+            _unsupported_wind_unit(hass)
+            update(sensor)
+        lines = warning_lines(caplog)
+        assert len(lines) == 2
+        assert "outside 0-100" in lines[0]
+        assert "unsupported wind speed unit" in lines[1]
 
 
 # ---------------------------------------------------------------------------
